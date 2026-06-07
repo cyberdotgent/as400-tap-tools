@@ -1,3 +1,4 @@
+#include "HexFormatter.h"
 #include "tap/Reader.h"
 #include "tap/Scanner.h"
 #include "tap/Writer.h"
@@ -145,6 +146,19 @@ void testReaderAcceptsAllExampleTapes()
     }
 }
 
+void testHexFormatterDecodesCp37AndHighlightsTextColumn()
+{
+    const std::vector<std::uint8_t> data{0xE5, 0xD6, 0xD3, 0xF1};
+    const auto formatted = formatHexView(data, TextEncoding::EbcdicCp37);
+    assert(formatted.find("E5 D6 D3 F1") != std::string::npos);
+    assert(formatted.find("VOL1") != std::string::npos);
+
+    const auto needle = encodeSearchText("VOL1", TextEncoding::EbcdicCp37);
+    const auto result = findBytesInHexView(data, needle, TextEncoding::EbcdicCp37);
+    assert(result.found);
+    assert(formatted.substr(result.text_offset, result.text_length) == "VOL1");
+}
+
 } // namespace
 
 int main()
@@ -154,5 +168,6 @@ int main()
     testMismatchedTrailerFailsStrictRead();
     testSampleScannerReportsZuluScsiTailAndReaderAcceptsIt();
     testReaderAcceptsAllExampleTapes();
+    testHexFormatterDecodesCp37AndHighlightsTextColumn();
     return 0;
 }

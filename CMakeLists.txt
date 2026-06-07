@@ -63,8 +63,12 @@ add_subdirectory(vendor/wxWidgets)
 add_executable(simh-tap-tools WIN32
     src/App.cpp
     src/App.h
+    src/HexFormatter.cpp
+    src/HexFormatter.h
     src/MainFrame.cpp
     src/MainFrame.h
+    src/TapeElementView.cpp
+    src/TapeElementView.h
 )
 
 target_link_libraries(simh-tap-tools
@@ -75,6 +79,8 @@ target_link_libraries(simh-tap-tools
 )
 
 add_executable(tap-tests
+    src/HexFormatter.cpp
+    src/HexFormatter.h
     tests/tap/TapTests.cpp
 )
 

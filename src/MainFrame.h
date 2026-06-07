@@ -16,6 +16,7 @@ class wxCommandEvent;
 class wxListEvent;
 class wxListCtrl;
 class wxPanel;
+class wxSplitterWindow;
 class wxString;
 class wxTextCtrl;
 
@@ -56,7 +57,8 @@ private:
     void OnStructureSelected(wxListEvent& event);
     void OnAbout(wxCommandEvent& event);
 
-    wxPanel* right_panel_ = nullptr;
+    wxSplitterWindow* main_splitter_ = nullptr;
+    wxSplitterWindow* hex_decoder_splitter_ = nullptr;
     DecoderPropertyPane* decoder_panel_ = nullptr;
     wxListCtrl* structure_list_ = nullptr;
     wxTextCtrl* hex_view_ = nullptr;

@@ -110,20 +110,19 @@ void MainFrame::BuildContent()
 {
     auto* panel = new wxPanel(this);
     auto* sizer = new wxBoxSizer(wxVERTICAL);
-    auto* splitter = new wxSplitterWindow(panel, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE);
+    main_splitter_ = new wxSplitterWindow(panel, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE);
 
-    structure_list_ = new wxListCtrl(splitter, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL);
+    structure_list_ = new wxListCtrl(main_splitter_, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL);
     structure_list_->AppendColumn(wxString::FromUTF8("#"), wxLIST_FORMAT_RIGHT, 56);
     structure_list_->AppendColumn(wxString::FromUTF8("Type"), wxLIST_FORMAT_LEFT, 140);
     structure_list_->AppendColumn(wxString::FromUTF8("Offset"), wxLIST_FORMAT_LEFT, 110);
     structure_list_->AppendColumn(wxString::FromUTF8("Size"), wxLIST_FORMAT_LEFT, 110);
     structure_list_->AppendColumn(wxString::FromUTF8("Details"), wxLIST_FORMAT_LEFT, 220);
 
-    right_panel_ = new wxPanel(splitter);
-    auto* right_sizer = new wxBoxSizer(wxVERTICAL);
+    hex_decoder_splitter_ = new wxSplitterWindow(main_splitter_, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE);
 
     hex_view_ = new wxTextCtrl(
-        right_panel_,
+        hex_decoder_splitter_,
         wxID_ANY,
         wxString(),
         wxDefaultPosition,
@@ -131,18 +130,17 @@ void MainFrame::BuildContent()
         wxTE_MULTILINE | wxTE_READONLY | wxTE_DONTWRAP | wxTE_RICH2);
     hex_view_->SetFont(wxFont(wxFontInfo(10).Family(wxFONTFAMILY_TELETYPE)));
 
-    decoder_panel_ = new DecoderPropertyPane(right_panel_);
+    decoder_panel_ = new DecoderPropertyPane(hex_decoder_splitter_);
     decoder_panel_->SetMessage("AS/400 record", "Select a data record to inspect its AS/400 label type.");
-    decoder_panel_->Hide();
+    hex_decoder_splitter_->Initialize(hex_view_);
+    hex_decoder_splitter_->SetMinimumPaneSize(120);
+    hex_decoder_splitter_->SetSashGravity(1.0);
 
-    right_sizer->Add(hex_view_, 1, wxEXPAND);
-    right_sizer->Add(decoder_panel_, 0, wxEXPAND);
-    right_panel_->SetSizer(right_sizer);
+    main_splitter_->SplitVertically(structure_list_, hex_decoder_splitter_, 420);
+    main_splitter_->SetMinimumPaneSize(240);
+    main_splitter_->SetSashGravity(0.0);
 
-    splitter->SplitVertically(structure_list_, right_panel_, 420);
-    splitter->SetMinimumPaneSize(240);
-
-    sizer->Add(splitter, 1, wxEXPAND);
+    sizer->Add(main_splitter_, 1, wxEXPAND);
     panel->SetSizer(sizer);
 }
 
@@ -264,14 +262,19 @@ void MainFrame::SetDecoderMode(DecoderMode decoder_mode)
 
     if (decoder_mode_ == DecoderMode::IbmAs400) {
         SetEncoding(TextEncoding::EbcdicCp37);
-        decoder_panel_->Show();
+        if (hex_decoder_splitter_ && !hex_decoder_splitter_->IsSplit()) {
+            const auto height = std::max(120, hex_decoder_splitter_->GetClientSize().GetHeight() - 180);
+            hex_decoder_splitter_->SplitHorizontally(hex_view_, decoder_panel_, height);
+        }
     } else {
         SetEncoding(TextEncoding::Ascii);
-        decoder_panel_->Hide();
+        if (hex_decoder_splitter_ && hex_decoder_splitter_->IsSplit()) {
+            hex_decoder_splitter_->Unsplit(decoder_panel_);
+        }
     }
 
-    if (right_panel_) {
-        right_panel_->Layout();
+    if (hex_decoder_splitter_) {
+        hex_decoder_splitter_->Layout();
     }
     UpdateDecoderPanel();
 }
@@ -290,7 +293,7 @@ void MainFrame::UpdateDecoderPanel()
     const auto& elements = tape_image_.elements();
     if (selected_element_index_ >= elements.size() || !elements[selected_element_index_].isRecord()) {
         decoder_panel_->SetMessage("AS/400 record", "Select a data record to inspect its AS/400 label type.");
-        right_panel_->Layout();
+        hex_decoder_splitter_->Layout();
         return;
     }
 
@@ -314,7 +317,7 @@ void MainFrame::UpdateDecoderPanel()
         });
     }
 
-    right_panel_->Layout();
+    hex_decoder_splitter_->Layout();
 }
 
 void MainFrame::UpdateWindowTitle()

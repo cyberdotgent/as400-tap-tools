@@ -37,7 +37,6 @@ As400FileListDialog::As400FileListDialog(wxWindow* parent, const std::vector<as4
     file_list_->Bind(wxEVT_LIST_ITEM_ACTIVATED, &As400FileListDialog::OnItemActivated, this);
 
     root->Add(file_list_, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
-    root->Add(CreateSeparatedButtonSizer(wxOK | wxCANCEL), 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
     SetSizerAndFit(root);
     SetMinSize(wxSize(860, 420));
     CentreOnParent();
@@ -83,5 +82,5 @@ void As400FileListDialog::OnItemActivated(wxListEvent& event)
     }
 
     selected_element_index_ = static_cast<std::size_t>(file_list_->GetItemData(item));
-    EndModal(wxID_OK);
+    EndModal(wxID_CANCEL);
 }

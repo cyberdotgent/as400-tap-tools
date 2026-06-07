@@ -169,7 +169,7 @@ void MainFrame::LoadTapeFile(const std::filesystem::path& path)
 {
     tap::Reader reader;
     const auto read_result = [&]() {
-        TapeProgressDialog progress(this, "Loading tape file");
+        TapeProgressDialog progress(this, "Loading tape file", "bytes");
         return reader.read(path, [&progress](const tap::ProgressInfo& info) {
             progress.SetProgress("Reading tape file...", info.bytes_read, info.bytes_total);
         });
@@ -229,7 +229,7 @@ void MainFrame::PopulateStructureList()
         return;
     }
 
-    TapeProgressDialog progress(this, "Rendering tape structure");
+    TapeProgressDialog progress(this, "Rendering tape structure", "records");
     for (std::size_t index = 0; index < elements.size(); ++index) {
         const auto view = describeTapeElement(elements[index]);
         const auto row = structure_list_->InsertItem(static_cast<long>(index), wxString::Format("%zu", index));

@@ -17,8 +17,9 @@ wxString Utf8(std::string_view text)
 
 } // namespace
 
-TapeProgressDialog::TapeProgressDialog(wxWindow* parent, std::string_view title)
+TapeProgressDialog::TapeProgressDialog(wxWindow* parent, std::string_view title, std::string_view unit_label)
     : wxDialog(parent, wxID_ANY, Utf8(title), wxDefaultPosition, wxSize(540, 180), wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
+    , unit_label_(unit_label)
 {
     auto* root = new wxBoxSizer(wxVERTICAL);
     activity_label_ = new wxStaticText(this, wxID_ANY, wxString::FromUTF8("Starting..."));
@@ -57,10 +58,11 @@ void TapeProgressDialog::SetProgress(std::string_view activity, std::size_t curr
 void TapeProgressDialog::RefreshText(std::string_view activity, std::size_t current, std::size_t total, bool indeterminate)
 {
     activity_label_->SetLabel(Utf8(activity));
+    const auto unit_label = wxString::FromUTF8(unit_label_.c_str());
     if (indeterminate) {
-        count_label_->SetLabel(wxString::Format(wxString::FromUTF8("%zu bytes read"), current));
+        count_label_->SetLabel(wxString::Format(wxString::FromUTF8("%zu %s processed"), current, unit_label));
     } else {
-        count_label_->SetLabel(wxString::Format(wxString::FromUTF8("%zu / %zu bytes read"), current, total));
+        count_label_->SetLabel(wxString::Format(wxString::FromUTF8("%zu / %zu %s processed"), current, total, unit_label));
     }
     UpdateSizeToContent();
 }

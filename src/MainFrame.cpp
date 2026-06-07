@@ -19,7 +19,6 @@
 #include <wx/sizer.h>
 #include <wx/splitter.h>
 #include <wx/statusbr.h>
-#include <wx/stattext.h>
 #include <wx/string.h>
 #include <wx/textctrl.h>
 #include <wx/textdlg.h>
@@ -133,9 +132,20 @@ void MainFrame::BuildContent()
 
     decoder_panel_ = new wxPanel(right_panel_);
     auto* decoder_sizer = new wxBoxSizer(wxVERTICAL);
-    decoder_title_ = new wxStaticText(decoder_panel_, wxID_ANY, wxString::FromUTF8("AS/400 record"));
-    decoder_details_ = new wxStaticText(decoder_panel_, wxID_ANY, wxString());
-    decoder_details_->Wrap(560);
+    decoder_title_ = new wxTextCtrl(
+        decoder_panel_,
+        wxID_ANY,
+        wxString::FromUTF8("AS/400 record"),
+        wxDefaultPosition,
+        wxDefaultSize,
+        wxTE_READONLY | wxBORDER_NONE);
+    decoder_details_ = new wxTextCtrl(
+        decoder_panel_,
+        wxID_ANY,
+        wxString(),
+        wxDefaultPosition,
+        wxSize(-1, 56),
+        wxTE_MULTILINE | wxTE_READONLY | wxTE_DONTWRAP | wxBORDER_NONE);
     decoder_sizer->Add(decoder_title_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 8);
     decoder_sizer->Add(decoder_details_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
     decoder_panel_->SetSizer(decoder_sizer);
@@ -295,29 +305,28 @@ void MainFrame::UpdateDecoderPanel()
 
     const auto& elements = tape_image_.elements();
     if (selected_element_index_ >= elements.size() || !elements[selected_element_index_].isRecord()) {
-        decoder_title_->SetLabel(wxString::FromUTF8("AS/400 record"));
-        decoder_details_->SetLabel(wxString::FromUTF8("Select a data record to inspect its AS/400 label type."));
+        decoder_title_->SetValue(wxString::FromUTF8("AS/400 record"));
+        decoder_details_->SetValue(wxString::FromUTF8("Select a data record to inspect its AS/400 label type."));
         right_panel_->Layout();
         return;
     }
 
     const auto info = as400_parser_.parseRecord(elements[selected_element_index_].record().data);
     if (info.recognized) {
-        decoder_title_->SetLabel(wxString::Format(
+        decoder_title_->SetValue(wxString::Format(
             wxString::FromUTF8("AS/400 record: %s (%s)"),
             wxString::FromUTF8(info.name.c_str()),
             wxString::FromUTF8(info.code.c_str())));
-        decoder_details_->SetLabel(info.details.empty()
+        decoder_details_->SetValue(info.details.empty()
                 ? wxString::FromUTF8("No additional label fields decoded.")
                 : wxString::FromUTF8(info.details.c_str()));
     } else {
-        decoder_title_->SetLabel(wxString::FromUTF8("AS/400 record: Unknown"));
-        decoder_details_->SetLabel(wxString::Format(
+        decoder_title_->SetValue(wxString::FromUTF8("AS/400 record: Unknown"));
+        decoder_details_->SetValue(wxString::Format(
             wxString::FromUTF8("No AS/400 tape label recognized. Leading CP37 text: %s"),
             wxString::FromUTF8(info.code.c_str())));
     }
 
-    decoder_details_->Wrap(std::max(240, decoder_panel_->GetClientSize().GetWidth() - 16));
     right_panel_->Layout();
 }
 

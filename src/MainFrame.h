@@ -15,7 +15,6 @@ class wxCommandEvent;
 class wxListEvent;
 class wxListCtrl;
 class wxPanel;
-class wxStaticText;
 class wxString;
 class wxTextCtrl;
 
@@ -58,8 +57,8 @@ private:
 
     wxPanel* right_panel_ = nullptr;
     wxPanel* decoder_panel_ = nullptr;
-    wxStaticText* decoder_title_ = nullptr;
-    wxStaticText* decoder_details_ = nullptr;
+    wxTextCtrl* decoder_title_ = nullptr;
+    wxTextCtrl* decoder_details_ = nullptr;
     wxListCtrl* structure_list_ = nullptr;
     wxTextCtrl* hex_view_ = nullptr;
     wxMenuItem* ascii_encoding_item_ = nullptr;

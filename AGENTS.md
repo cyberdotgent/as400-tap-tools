@@ -22,4 +22,5 @@
 - Commit completed work when requested.
 - Commit author must be `Yvan Janssens <yvanj@cyber.gent>`.
 - Commit messages must not mention Codex, OpenAI, or similar tooling.
+- Push completed commits after committing, when a remote is available.
 - Do not revert user changes unless explicitly asked.

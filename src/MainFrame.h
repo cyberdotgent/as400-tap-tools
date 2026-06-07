@@ -1,5 +1,6 @@
 #pragma once
 
+#include "DecoderPropertyPane.h"
 #include "HexFormatter.h"
 #include "as400/RecordParser.h"
 #include "tap/TapeImage.h"
@@ -56,9 +57,7 @@ private:
     void OnAbout(wxCommandEvent& event);
 
     wxPanel* right_panel_ = nullptr;
-    wxPanel* decoder_panel_ = nullptr;
-    wxTextCtrl* decoder_title_ = nullptr;
-    wxTextCtrl* decoder_details_ = nullptr;
+    DecoderPropertyPane* decoder_panel_ = nullptr;
     wxListCtrl* structure_list_ = nullptr;
     wxTextCtrl* hex_view_ = nullptr;
     wxMenuItem* ascii_encoding_item_ = nullptr;

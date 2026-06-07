@@ -30,74 +30,87 @@ std::string field(const std::string& text, std::size_t offset, std::size_t lengt
     return trim(text.substr(offset, std::min(length, text.size() - offset)));
 }
 
-void appendField(std::ostringstream& output, const char* label, const std::string& value)
+void appendField(std::vector<RecordField>& fields, const char* label, const std::string& value)
 {
     if (value.empty()) {
         return;
     }
-    if (output.tellp() > 0) {
-        output << " | ";
-    }
-    output << label << ": " << value;
+    fields.push_back(RecordField{label, value});
 }
 
-RecordInfo makeInfo(RecordType type, std::string code, std::string name, std::string details)
+std::string formatDetails(const std::vector<RecordField>& fields)
+{
+    std::ostringstream output;
+    for (const auto& field : fields) {
+        if (output.tellp() > 0) {
+            output << " | ";
+        }
+        output << field.name << ": " << field.value;
+    }
+    return output.str();
+}
+
+RecordInfo makeInfo(RecordType type, std::string code, std::string name, std::vector<RecordField> fields)
 {
     RecordInfo info;
     info.type = type;
     info.code = std::move(code);
     info.name = std::move(name);
-    info.details = std::move(details);
+    info.fields = std::move(fields);
+    info.details = formatDetails(info.fields);
     info.recognized = true;
     return info;
 }
 
 RecordInfo parseVolumeLabel(const std::string& text)
 {
-    std::ostringstream details;
-    appendField(details, "Volume", field(text, 4, 6));
-    appendField(details, "Owner", field(text, 37, 14));
-    return makeInfo(RecordType::VolumeLabel, "VOL1", "Volume label", details.str());
+    std::vector<RecordField> fields;
+    appendField(fields, "Record type", "VOL1");
+    appendField(fields, "Volume", field(text, 4, 6));
+    appendField(fields, "Owner", field(text, 37, 14));
+    return makeInfo(RecordType::VolumeLabel, "VOL1", "Volume label", std::move(fields));
 }
 
 RecordInfo parseHeader1(const std::string& text)
 {
-    std::ostringstream details;
-    appendField(details, "File", field(text, 4, 17));
-    appendField(details, "Set", field(text, 21, 6));
-    appendField(details, "Section", field(text, 27, 4));
-    appendField(details, "Sequence", field(text, 31, 4));
-    appendField(details, "Generation", field(text, 35, 4));
-    appendField(details, "Created", field(text, 41, 6));
-    appendField(details, "Expires", field(text, 47, 6));
-    appendField(details, "System", field(text, 60, 13));
-    return makeInfo(RecordType::Header1, "HDR1", "Data set header 1", details.str());
+    std::vector<RecordField> fields;
+    appendField(fields, "Record type", "HDR1");
+    appendField(fields, "File", field(text, 4, 17));
+    appendField(fields, "Set", field(text, 21, 6));
+    appendField(fields, "Section", field(text, 27, 4));
+    appendField(fields, "Sequence", field(text, 31, 4));
+    appendField(fields, "Generation", field(text, 35, 4));
+    appendField(fields, "Created", field(text, 41, 6));
+    appendField(fields, "Expires", field(text, 47, 6));
+    appendField(fields, "System", field(text, 60, 13));
+    return makeInfo(RecordType::Header1, "HDR1", "Data set header 1", std::move(fields));
 }
 
 RecordInfo parseHeader2(const std::string& text)
 {
-    std::ostringstream details;
-    appendField(details, "Format", field(text, 4, 1));
-    appendField(details, "Block length", field(text, 5, 5));
-    appendField(details, "Record length", field(text, 10, 5));
-    appendField(details, "Density", field(text, 15, 1));
-    appendField(details, "Job", field(text, 38, 17));
-    return makeInfo(RecordType::Header2, "HDR2", "Data set header 2", details.str());
+    std::vector<RecordField> fields;
+    appendField(fields, "Record type", "HDR2");
+    appendField(fields, "Format", field(text, 4, 1));
+    appendField(fields, "Block length", field(text, 5, 5));
+    appendField(fields, "Record length", field(text, 10, 5));
+    appendField(fields, "Density", field(text, 15, 1));
+    appendField(fields, "Job", field(text, 38, 17));
+    return makeInfo(RecordType::Header2, "HDR2", "Data set header 2", std::move(fields));
 }
 
 RecordInfo parseSimpleLabel(const std::string& code)
 {
     if (code == "EOF1") {
-        return makeInfo(RecordType::EndOfFile1, code, "End-of-file label 1", {});
+        return makeInfo(RecordType::EndOfFile1, code, "End-of-file label 1", {RecordField{"Record type", code}});
     }
     if (code == "EOF2") {
-        return makeInfo(RecordType::EndOfFile2, code, "End-of-file label 2", {});
+        return makeInfo(RecordType::EndOfFile2, code, "End-of-file label 2", {RecordField{"Record type", code}});
     }
     if (code == "UHL1") {
-        return makeInfo(RecordType::UserHeader1, code, "User header label 1", {});
+        return makeInfo(RecordType::UserHeader1, code, "User header label 1", {RecordField{"Record type", code}});
     }
     if (code == "UHL2") {
-        return makeInfo(RecordType::UserHeader2, code, "User header label 2", {});
+        return makeInfo(RecordType::UserHeader2, code, "User header label 2", {RecordField{"Record type", code}});
     }
     return {};
 }

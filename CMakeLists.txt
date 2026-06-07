@@ -80,6 +80,8 @@ add_subdirectory(vendor/wxWidgets)
 add_executable(simh-tap-tools WIN32
     src/App.cpp
     src/App.h
+    src/DecoderPropertyPane.cpp
+    src/DecoderPropertyPane.h
     src/HexFormatter.cpp
     src/HexFormatter.h
     src/MainFrame.cpp

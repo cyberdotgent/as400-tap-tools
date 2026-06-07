@@ -19,11 +19,17 @@ enum class RecordType {
     UserHeader2
 };
 
+struct RecordField {
+    std::string name;
+    std::string value;
+};
+
 struct RecordInfo {
     RecordType type = RecordType::Unknown;
     std::string code;
     std::string name;
     std::string details;
+    std::vector<RecordField> fields;
     bool recognized = false;
 };
 

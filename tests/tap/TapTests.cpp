@@ -5,6 +5,7 @@
 #include "tap/Scanner.h"
 #include "tap/Writer.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <filesystem>
@@ -172,6 +173,9 @@ void testAs400RecordParserIdentifiesLabels()
     assert(volume_info.type == as400::RecordType::VolumeLabel);
     assert(volume_info.code == "VOL1");
     assert(volume_info.details.find("Volume: TEST") != std::string::npos);
+    assert(!volume_info.fields.empty());
+    assert(volume_info.fields[0].name == "Record type");
+    assert(volume_info.fields[0].value == "VOL1");
 
     auto header1 = as400::encodeCp37("HDR1QFILEIML        DV4R4 0001000100010026158 99999000000IBMOS400");
     header1.resize(80, 0x40);
@@ -179,6 +183,9 @@ void testAs400RecordParserIdentifiesLabels()
     assert(header_info.recognized);
     assert(header_info.type == as400::RecordType::Header1);
     assert(header_info.details.find("File: QFILEIML") != std::string::npos);
+    assert(std::any_of(header_info.fields.begin(), header_info.fields.end(), [](const as400::RecordField& field) {
+        return field.name == "File" && field.value.find("QFILEIML") == 0;
+    }));
 }
 
 void testAs400DetectorAcceptsBlankTape()

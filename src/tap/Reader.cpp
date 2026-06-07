@@ -2,7 +2,8 @@
 
 #include "Scanner.h"
 
-#include <fstream>
+#include <filesystem>
+#include <system_error>
 #include <utility>
 
 namespace tap {
@@ -37,12 +38,9 @@ Result<TapeImage> Reader::read(std::istream& input, const ProgressCallback& prog
 Result<TapeImage> Reader::read(const std::filesystem::path& path, const ProgressCallback& progress) const
 {
     Scanner scanner;
-    const auto count_result = scanner.count(path, progress);
-    if (!count_result) {
-        return Result<TapeImage>::fail(count_result.error());
-    }
-
-    auto scan_result = scanner.scan(path, count_result.value(), progress);
+    std::error_code error_code;
+    const auto total_bytes = std::filesystem::file_size(path, error_code);
+    const auto scan_result = scanner.scan(path, error_code ? 0 : total_bytes, progress);
     if (!scan_result.diagnostics.empty()) {
         const auto& diagnostic = scan_result.diagnostics.front();
         if (!options_.allow_zuluscsi_trailing_partial_record || !isZuluScsiTrailingPartialRecord(diagnostic)) {

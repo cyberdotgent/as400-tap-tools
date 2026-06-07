@@ -130,59 +130,10 @@ ScanStep readNextElement(std::istream& input, std::uint64_t& offset, TapeImage* 
 
 } // namespace
 
-Result<std::size_t> Scanner::count(std::istream& input, const ProgressCallback& progress) const
-{
-    std::vector<Error> diagnostics;
-    std::uint64_t offset = 0;
-    std::size_t object_count = 0;
-
-    while (true) {
-        if (input.peek() == std::char_traits<char>::eof()) {
-            break;
-        }
-
-        const auto step = readNextElement(input, offset, nullptr, diagnostics);
-        if (step == ScanStep::Error) {
-            break;
-        }
-        ++object_count;
-        if (progress) {
-            progress(ProgressInfo{object_count, 0, offset, true});
-        }
-        if (step == ScanStep::Stop) {
-            break;
-        }
-    }
-
-    if (!diagnostics.empty()) {
-        if (diagnostics.front().code == ErrorCode::TrailingPartialRecord) {
-            return Result<std::size_t>::ok(object_count);
-        }
-        return Result<std::size_t>::fail(diagnostics.front());
-    }
-
-    return Result<std::size_t>::ok(object_count);
-}
-
-Result<std::size_t> Scanner::count(const std::filesystem::path& path, const ProgressCallback& progress) const
-{
-    std::ifstream input(path, std::ios::binary);
-    if (!input) {
-        return Result<std::size_t>::fail(Error{
-            ErrorCode::IoError,
-            "failed to open SIMH tape file for reading",
-            0,
-        });
-    }
-
-    return count(input, progress);
-}
-
-ScanResult Scanner::scan(std::istream& input, std::size_t total_objects, const ProgressCallback& progress) const
+ScanResult Scanner::scan(std::istream& input, std::uint64_t total_bytes, const ProgressCallback& progress) const
 {
     ScanResult result;
     std::uint64_t offset = 0;
-    std::size_t object_count = 0;
 
     while (true) {
         if (input.peek() == std::char_traits<char>::eof()) {
@@ -194,9 +145,8 @@ ScanResult Scanner::scan(std::istream& input, std::size_t total_objects, const P
             break;
         }
 
-        ++object_count;
         if (progress) {
-            progress(ProgressInfo{object_count, total_objects, offset, false});
+            progress(ProgressInfo{offset, total_bytes});
         }
         if (step == ScanStep::Stop) {
             break;
@@ -206,7 +156,7 @@ ScanResult Scanner::scan(std::istream& input, std::size_t total_objects, const P
     return result;
 }
 
-ScanResult Scanner::scan(const std::filesystem::path& path, std::size_t total_objects, const ProgressCallback& progress) const
+ScanResult Scanner::scan(const std::filesystem::path& path, std::uint64_t total_bytes, const ProgressCallback& progress) const
 {
     std::ifstream input(path, std::ios::binary);
     if (!input) {
@@ -219,7 +169,7 @@ ScanResult Scanner::scan(const std::filesystem::path& path, std::size_t total_ob
         return result;
     }
 
-    return scan(input, total_objects, progress);
+    return scan(input, total_bytes, progress);
 }
 
 } // namespace tap

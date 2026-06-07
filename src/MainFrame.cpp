@@ -171,11 +171,7 @@ void MainFrame::LoadTapeFile(const std::filesystem::path& path)
     const auto read_result = [&]() {
         TapeProgressDialog progress(this, "Loading tape file");
         return reader.read(path, [&progress](const tap::ProgressInfo& info) {
-            if (info.counting) {
-                progress.Pulse("Counting tape records...", info.current);
-                return;
-            }
-            progress.SetProgress("Loading tape records...", info.current, info.total);
+            progress.SetProgress("Reading tape file...", info.bytes_read, info.bytes_total);
         });
     }();
     if (!read_result) {
@@ -547,13 +543,7 @@ void MainFrame::OnAs400FileList(wxCommandEvent&)
         return;
     }
 
-    const auto file_entries = [&]() {
-        TapeProgressDialog progress(this, "Building file list");
-        const auto progress_callback = [&progress](const tap::ProgressInfo& info) {
-            progress.SetProgress("Scanning tape records for files...", info.current, info.total);
-        };
-        return as400::collectAs400FileList(tape_image_, as400_parser_, progress_callback);
-    }();
+    const auto file_entries = as400::collectAs400FileList(tape_image_, as400_parser_);
     if (file_entries.empty()) {
         wxMessageBox(
             wxString::FromUTF8("No HDR1 file labels were found on this tape."),

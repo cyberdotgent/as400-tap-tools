@@ -7,10 +7,8 @@
 namespace tap {
 
 struct ProgressInfo {
-    std::size_t current = 0;
-    std::size_t total = 0;
-    std::uint64_t offset = 0;
-    bool counting = false;
+    std::uint64_t bytes_read = 0;
+    std::uint64_t bytes_total = 0;
 };
 
 using ProgressCallback = std::function<void(const ProgressInfo&)>;

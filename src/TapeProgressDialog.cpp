@@ -57,9 +57,9 @@ void TapeProgressDialog::RefreshText(std::string_view activity, std::size_t curr
 {
     activity_label_->SetLabel(Utf8(activity));
     if (indeterminate) {
-        count_label_->SetLabel(wxString::Format(wxString::FromUTF8("%zu records processed"), current));
+        count_label_->SetLabel(wxString::Format(wxString::FromUTF8("%zu bytes read"), current));
     } else {
-        count_label_->SetLabel(wxString::Format(wxString::FromUTF8("%zu / %zu records processed"), current, total));
+        count_label_->SetLabel(wxString::Format(wxString::FromUTF8("%zu / %zu bytes read"), current, total));
     }
     Layout();
 }

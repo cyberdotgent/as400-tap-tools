@@ -4,10 +4,10 @@
 
 #include <wx/clipbrd.h>
 #include <wx/dataobj.h>
-#include <wx/listctrl.h>
 #include <wx/sizer.h>
 #include <wx/string.h>
 #include <wx/textctrl.h>
+#include <wx/treelist.h>
 #include <wx/window.h>
 
 namespace {
@@ -28,6 +28,42 @@ bool isDescendantOf(wxWindow* child, const wxWindow* parent)
     return false;
 }
 
+wxTreeListItem appendProperty(wxTreeListCtrl* tree, wxTreeListItem parent, const DecoderProperty& property)
+{
+    const auto item = tree->AppendItem(parent, Utf8(property.name));
+    tree->SetItemText(item, 1, Utf8(property.value));
+
+    for (const auto& child : property.children) {
+        appendProperty(tree, item, child);
+    }
+
+    if (!property.children.empty()) {
+        tree->Expand(item);
+    }
+
+    return item;
+}
+
+std::string itemPath(const wxTreeListCtrl* tree, wxTreeListItem item)
+{
+    std::vector<std::string> names;
+    for (auto current = item; current.IsOk(); current = tree->GetItemParent(current)) {
+        const auto name = tree->GetItemText(current, 0).ToStdString();
+        if (!name.empty()) {
+            names.push_back(name);
+        }
+    }
+
+    std::ostringstream output;
+    for (auto it = names.rbegin(); it != names.rend(); ++it) {
+        if (output.tellp() > 0) {
+            output << '.';
+        }
+        output << *it;
+    }
+    return output.str();
+}
+
 } // namespace
 
 DecoderPropertyPane::DecoderPropertyPane(wxWindow* parent)
@@ -43,17 +79,17 @@ DecoderPropertyPane::DecoderPropertyPane(wxWindow* parent)
         wxDefaultSize,
         wxTE_READONLY | wxBORDER_NONE);
 
-    properties_ = new wxListCtrl(
+    properties_ = new wxTreeListCtrl(
         this,
         wxID_ANY,
         wxDefaultPosition,
-        wxSize(-1, 116),
-        wxLC_REPORT | wxLC_SINGLE_SEL);
-    properties_->AppendColumn(wxString::FromUTF8("Property"), wxLIST_FORMAT_LEFT, 160);
-    properties_->AppendColumn(wxString::FromUTF8("Value"), wxLIST_FORMAT_LEFT, 520);
+        wxDefaultSize,
+        wxTL_SINGLE);
+    properties_->AppendColumn(wxString::FromUTF8("Property"), 180, wxALIGN_LEFT, wxCOL_RESIZABLE);
+    properties_->AppendColumn(wxString::FromUTF8("Value"), 520, wxALIGN_LEFT, wxCOL_RESIZABLE);
 
     sizer->Add(title_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 8);
-    sizer->Add(properties_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
+    sizer->Add(properties_, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
     SetSizer(sizer);
 }
 
@@ -65,9 +101,9 @@ void DecoderPropertyPane::SetTitle(std::string_view title)
 void DecoderPropertyPane::SetProperties(const std::vector<DecoderProperty>& properties)
 {
     properties_->DeleteAllItems();
-    for (std::size_t index = 0; index < properties.size(); ++index) {
-        const auto row = properties_->InsertItem(static_cast<long>(index), Utf8(properties[index].name));
-        properties_->SetItem(row, 1, Utf8(properties[index].value));
+    const auto root = properties_->GetRootItem();
+    for (const auto& property : properties) {
+        appendProperty(properties_, root, property);
     }
 }
 
@@ -85,17 +121,16 @@ bool DecoderPropertyPane::HasFocusedChild() const
 bool DecoderPropertyPane::CopySelectionToClipboard() const
 {
     std::ostringstream output;
-    long item = -1;
-    while (true) {
-        item = properties_->GetNextItem(item, wxLIST_NEXT_ALL, wxLIST_STATE_SELECTED);
-        if (item == -1) {
-            break;
+    wxTreeListItems selections;
+    properties_->GetSelections(selections);
+    for (const auto& item : selections) {
+        if (!item.IsOk()) {
+            continue;
         }
-
         if (output.tellp() > 0) {
             output << '\n';
         }
-        output << properties_->GetItemText(item).ToStdString()
+        output << itemPath(properties_, item)
                << '\t'
                << properties_->GetItemText(item, 1).ToStdString();
     }

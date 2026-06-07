@@ -22,6 +22,7 @@ enum class RecordType {
 struct RecordField {
     std::string name;
     std::string value;
+    std::vector<RecordField> children;
 };
 
 struct RecordInfo {

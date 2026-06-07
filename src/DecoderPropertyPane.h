@@ -6,13 +6,14 @@
 
 #include <wx/panel.h>
 
-class wxListCtrl;
 class wxTextCtrl;
+class wxTreeListCtrl;
 class wxWindow;
 
 struct DecoderProperty {
     std::string name;
     std::string value;
+    std::vector<DecoderProperty> children;
 };
 
 class DecoderPropertyPane final : public wxPanel
@@ -29,5 +30,5 @@ public:
 
 private:
     wxTextCtrl* title_ = nullptr;
-    wxListCtrl* properties_ = nullptr;
+    wxTreeListCtrl* properties_ = nullptr;
 };

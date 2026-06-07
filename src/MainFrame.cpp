@@ -44,6 +44,18 @@ wxString Utf8(std::string_view text)
     return wxString::FromUTF8(text.data(), text.size());
 }
 
+DecoderProperty ToDecoderProperty(const as400::RecordField& field)
+{
+    DecoderProperty property;
+    property.name = field.name;
+    property.value = field.value;
+    property.children.reserve(field.children.size());
+    for (const auto& child : field.children) {
+        property.children.push_back(ToDecoderProperty(child));
+    }
+    return property;
+}
+
 } // namespace
 
 MainFrame::MainFrame(const wxString& title)
@@ -299,21 +311,30 @@ void MainFrame::UpdateDecoderPanel()
 
     const auto info = as400_parser_.parseRecord(elements[selected_element_index_].record().data);
     if (info.recognized) {
-        std::vector<DecoderProperty> properties;
-        properties.reserve(info.fields.size());
+        DecoderProperty record;
+        record.name = "Record";
+        record.value = info.name;
+        record.children.push_back(DecoderProperty{"Label code", info.code, {}});
+        record.children.push_back(DecoderProperty{"Decoder", "IBM AS/400", {}});
         for (const auto& field : info.fields) {
-            properties.push_back(DecoderProperty{field.name, field.value});
+            record.children.push_back(ToDecoderProperty(field));
         }
-        if (properties.empty()) {
-            properties.push_back(DecoderProperty{"Status", "No additional label fields decoded."});
+        if (info.fields.empty()) {
+            record.children.push_back(DecoderProperty{"Status", "No additional label fields decoded.", {}});
         }
         decoder_panel_->SetTitle("AS/400 record: " + info.name + " (" + info.code + ")");
-        decoder_panel_->SetProperties(properties);
+        decoder_panel_->SetProperties({record});
     } else {
         decoder_panel_->SetTitle("AS/400 record: Unknown");
         decoder_panel_->SetProperties({
-            DecoderProperty{"Status", "No AS/400 tape label recognized."},
-            DecoderProperty{"Leading CP37 text", info.code},
+            DecoderProperty{
+                "Record",
+                "Unknown",
+                {
+                    DecoderProperty{"Status", "No AS/400 tape label recognized.", {}},
+                    DecoderProperty{"Leading CP37 text", info.code, {}},
+                },
+            },
         });
     }
 

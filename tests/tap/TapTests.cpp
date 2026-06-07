@@ -270,6 +270,10 @@ void testAs400FileListCollectsHeaderRecords()
         {54, "001024"},
         {60, "IBMOS400"},
     }));
+    image.appendRecord(std::vector<std::uint8_t>(1024, 0x01));
+    image.appendRecord(std::vector<std::uint8_t>(512, 0x02));
+    image.appendRecord(as400::encodeCp37("EOF1"));
+    image.appendRecord(as400::encodeCp37("EOF2"));
     image.appendTapeMark();
 
     as400::RecordParser parser;
@@ -277,7 +281,7 @@ void testAs400FileListCollectsHeaderRecords()
     assert(files.size() == 1);
     assert(files[0].element_index == 1);
     assert(files[0].file_name == "QFILEIML");
-    assert(files[0].size == "1.0 K");
+    assert(files[0].size == "1.5 K");
     assert(files[0].created == "2026-06-07");
     assert(files[0].expires == "Does not expire");
 }
@@ -289,12 +293,11 @@ void testAs400FileListFormatsLargerSizes()
     record.type = as400::RecordType::Header1;
     record.fields = {
         {"File", "BIGFILE", {}},
-        {"Block count", "1073741824", {}},
         {"Created", "026158", {{"Date", "2026-06-07", {}}}},
         {"Expires", "never", {{"Date", "2026-12-31", {}}}},
     };
 
-    const auto entry = as400::makeAs400FileListEntry(7, record);
+    const auto entry = as400::makeAs400FileListEntry(7, record, 1073741824ULL);
     assert(entry);
     assert(entry->size == "1.0 G");
     assert(entry->created == "2026-06-07");

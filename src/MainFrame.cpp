@@ -266,6 +266,7 @@ void MainFrame::PopulateStructureList()
     }
 
     TapeProgressDialog progress(this, "Rendering tape structure", "records");
+    as400::FileListCollector file_list_collector;
     std::size_t last_progress_records = 0;
     const auto step = progressStep(elements.size());
     for (std::size_t index = 0; index < elements.size(); ++index) {
@@ -283,11 +284,11 @@ void MainFrame::PopulateStructureList()
 
         if (elements[index].isRecord()) {
             const auto record = as400_parser_.parseRecord(elements[index].record().data);
-            if (const auto entry = as400::makeAs400FileListEntry(index, record)) {
-                file_list_entries_.push_back(std::move(*entry));
-            }
+            file_list_collector.observe(index, record, elements[index].record().data.size());
         }
     }
+
+    file_list_entries_ = file_list_collector.takeEntries();
 }
 
 void MainFrame::ShowSelectedElement(std::size_t index)

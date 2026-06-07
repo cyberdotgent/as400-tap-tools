@@ -74,26 +74,12 @@ std::string formatHumanSize(std::uint64_t value)
     return output.str();
 }
 
-std::string formattedSizeValue(const RecordInfo& record)
-{
-    const auto field = std::find_if(record.fields.begin(), record.fields.end(), [](const RecordField& entry) {
-        return entry.name == "Block count";
-    });
-    if (field == record.fields.end() || field->value.empty()) {
-        return {};
-    }
-    if (!std::all_of(field->value.begin(), field->value.end(), [](unsigned char ch) {
-            return std::isdigit(static_cast<int>(ch)) != 0;
-        })) {
-        return field->value;
-    }
-
-    return formatHumanSize(static_cast<std::uint64_t>(std::stoull(field->value)));
-}
-
 } // namespace
 
-std::optional<FileListEntry> makeAs400FileListEntry(std::size_t element_index, const RecordInfo& record)
+std::optional<FileListEntry> makeAs400FileListEntry(
+    std::size_t element_index,
+    const RecordInfo& record,
+    std::uint64_t payload_size_bytes)
 {
     if (!record.recognized || record.type != RecordType::Header1) {
         return std::nullopt;
@@ -103,7 +89,7 @@ std::optional<FileListEntry> makeAs400FileListEntry(std::size_t element_index, c
     entry.element_index = element_index;
     entry.record = record;
     entry.file_name = fieldValue(record, "File");
-    entry.size = formattedSizeValue(record);
+    entry.size = formatHumanSize(payload_size_bytes);
     entry.set = fieldValue(record, "Set");
     entry.section = fieldValue(record, "Section");
     entry.sequence = fieldValue(record, "Sequence");
@@ -114,11 +100,64 @@ std::optional<FileListEntry> makeAs400FileListEntry(std::size_t element_index, c
     return entry;
 }
 
+void FileListCollector::observe(std::size_t element_index, const RecordInfo& record, std::uint64_t payload_size_bytes)
+{
+    if (record.recognized && record.type == RecordType::Header1) {
+        finalizeOpenFile();
+        open_file_ = OpenFile{element_index, record, 0};
+        return;
+    }
+
+    if (!open_file_) {
+        return;
+    }
+
+    if (record.recognized) {
+        if (record.type == RecordType::EndOfFile1 || record.type == RecordType::EndOfFile2) {
+            finalizeOpenFile();
+            return;
+        }
+        if (record.type != RecordType::Unknown) {
+            return;
+        }
+    }
+
+    open_file_->payload_size_bytes += payload_size_bytes;
+}
+
+void FileListCollector::finish()
+{
+    finalizeOpenFile();
+}
+
+const std::vector<FileListEntry>& FileListCollector::entries() const
+{
+    return entries_;
+}
+
+std::vector<FileListEntry> FileListCollector::takeEntries()
+{
+    finish();
+    return std::move(entries_);
+}
+
+void FileListCollector::finalizeOpenFile()
+{
+    if (!open_file_) {
+        return;
+    }
+
+    if (const auto entry = makeAs400FileListEntry(open_file_->element_index, open_file_->record, open_file_->payload_size_bytes)) {
+        entries_.push_back(std::move(*entry));
+    }
+    open_file_.reset();
+}
+
 std::vector<FileListEntry> collectAs400FileList(
     const tap::TapeImage& image,
     const RecordParser& parser)
 {
-    std::vector<FileListEntry> entries;
+    FileListCollector collector;
     const auto& elements = image.elements();
     for (std::size_t index = 0; index < elements.size(); ++index) {
         const auto& element = elements[index];
@@ -127,12 +166,10 @@ std::vector<FileListEntry> collectAs400FileList(
         }
 
         const auto record = parser.parseRecord(element.record().data);
-        if (const auto entry = makeAs400FileListEntry(index, record)) {
-            entries.push_back(std::move(*entry));
-        }
+        collector.observe(index, record, element.record().data.size());
     }
 
-    return entries;
+    return collector.takeEntries();
 }
 
 } // namespace as400

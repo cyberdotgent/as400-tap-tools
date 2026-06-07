@@ -96,6 +96,10 @@ add_executable(simh-tap-tools WIN32
     src/TapeElementView.h
 )
 
+if(WIN32)
+    target_sources(simh-tap-tools PRIVATE src/windows/app.rc)
+endif()
+
 target_link_libraries(simh-tap-tools
     PRIVATE
         as400

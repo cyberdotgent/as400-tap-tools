@@ -3,6 +3,7 @@
 #include "TapeElementView.h"
 #include "tap/Reader.h"
 
+#include <algorithm>
 #include <string_view>
 
 #include <wx/aboutdlg.h>
@@ -18,6 +19,7 @@
 #include <wx/sizer.h>
 #include <wx/splitter.h>
 #include <wx/statusbr.h>
+#include <wx/stattext.h>
 #include <wx/string.h>
 #include <wx/textctrl.h>
 #include <wx/textdlg.h>
@@ -32,6 +34,8 @@ constexpr int FindMenuId = wxID_FIND;
 constexpr int AboutMenuId = wxID_ABOUT;
 constexpr int EncodingAsciiMenuId = wxID_HIGHEST + 1;
 constexpr int EncodingEbcdicMenuId = wxID_HIGHEST + 2;
+constexpr int DecoderGenericMenuId = wxID_HIGHEST + 3;
+constexpr int DecoderIbmAs400MenuId = wxID_HIGHEST + 4;
 
 constexpr long NoSelection = -1;
 
@@ -58,6 +62,8 @@ MainFrame::MainFrame(const wxString& title)
     Bind(wxEVT_MENU, &MainFrame::OnFind, this, FindMenuId);
     Bind(wxEVT_MENU, &MainFrame::OnEncodingAscii, this, EncodingAsciiMenuId);
     Bind(wxEVT_MENU, &MainFrame::OnEncodingEbcdic, this, EncodingEbcdicMenuId);
+    Bind(wxEVT_MENU, &MainFrame::OnDecoderGeneric, this, DecoderGenericMenuId);
+    Bind(wxEVT_MENU, &MainFrame::OnDecoderIbmAs400, this, DecoderIbmAs400MenuId);
     Bind(wxEVT_MENU, &MainFrame::OnAbout, this, AboutMenuId);
     structure_list_->Bind(wxEVT_LIST_ITEM_SELECTED, &MainFrame::OnStructureSelected, this);
 }
@@ -80,8 +86,14 @@ void MainFrame::BuildMenuBar()
     ebcdic_encoding_item_ = encoding_menu->AppendRadioItem(EncodingEbcdicMenuId, wxString::FromUTF8("&EBCDIC (CP 37)"));
     ascii_encoding_item_->Check(true);
 
+    auto* decoder_menu = new wxMenu();
+    generic_decoder_item_ = decoder_menu->AppendRadioItem(DecoderGenericMenuId, wxString::FromUTF8("&Generic"));
+    as400_decoder_item_ = decoder_menu->AppendRadioItem(DecoderIbmAs400MenuId, wxString::FromUTF8("&IBM AS/400"));
+    generic_decoder_item_->Check(true);
+
     auto* view_menu = new wxMenu();
     view_menu->AppendSubMenu(encoding_menu, wxString::FromUTF8("&Encoding"));
+    view_menu->AppendSubMenu(decoder_menu, wxString::FromUTF8("&Decoders"));
 
     auto* help_menu = new wxMenu();
     help_menu->Append(AboutMenuId, wxString::FromUTF8("&About"));
@@ -107,8 +119,11 @@ void MainFrame::BuildContent()
     structure_list_->AppendColumn(wxString::FromUTF8("Size"), wxLIST_FORMAT_LEFT, 110);
     structure_list_->AppendColumn(wxString::FromUTF8("Details"), wxLIST_FORMAT_LEFT, 220);
 
+    right_panel_ = new wxPanel(splitter);
+    auto* right_sizer = new wxBoxSizer(wxVERTICAL);
+
     hex_view_ = new wxTextCtrl(
-        splitter,
+        right_panel_,
         wxID_ANY,
         wxString(),
         wxDefaultPosition,
@@ -116,7 +131,21 @@ void MainFrame::BuildContent()
         wxTE_MULTILINE | wxTE_READONLY | wxTE_DONTWRAP | wxTE_RICH2);
     hex_view_->SetFont(wxFont(wxFontInfo(10).Family(wxFONTFAMILY_TELETYPE)));
 
-    splitter->SplitVertically(structure_list_, hex_view_, 420);
+    decoder_panel_ = new wxPanel(right_panel_);
+    auto* decoder_sizer = new wxBoxSizer(wxVERTICAL);
+    decoder_title_ = new wxStaticText(decoder_panel_, wxID_ANY, wxString::FromUTF8("AS/400 record"));
+    decoder_details_ = new wxStaticText(decoder_panel_, wxID_ANY, wxString());
+    decoder_details_->Wrap(560);
+    decoder_sizer->Add(decoder_title_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 8);
+    decoder_sizer->Add(decoder_details_, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 8);
+    decoder_panel_->SetSizer(decoder_sizer);
+    decoder_panel_->Hide();
+
+    right_sizer->Add(hex_view_, 1, wxEXPAND);
+    right_sizer->Add(decoder_panel_, 0, wxEXPAND);
+    right_panel_->SetSizer(right_sizer);
+
+    splitter->SplitVertically(structure_list_, right_panel_, 420);
     splitter->SetMinimumPaneSize(240);
 
     sizer->Add(splitter, 1, wxEXPAND);
@@ -145,6 +174,7 @@ void MainFrame::LoadTapeFile(const std::filesystem::path& path)
     selected_bytes_.clear();
     selected_element_index_ = std::numeric_limits<std::size_t>::max();
     next_search_offset_ = 0;
+    DetectDecoderMode();
 
     PopulateStructureList();
     if (!tape_image_.empty()) {
@@ -165,6 +195,7 @@ void MainFrame::ClearTape()
     selected_bytes_.clear();
     selected_element_index_ = std::numeric_limits<std::size_t>::max();
     next_search_offset_ = 0;
+    SetDecoderMode(DecoderMode::Generic);
     PopulateStructureList();
     RefreshHexView();
     UpdateWindowTitle();
@@ -200,6 +231,7 @@ void MainFrame::ShowSelectedElement(std::size_t index)
 
     next_search_offset_ = 0;
     RefreshHexView();
+    UpdateDecoderPanel();
     UpdateStatusText();
 }
 
@@ -226,6 +258,69 @@ void MainFrame::SetEncoding(TextEncoding encoding)
     UpdateStatusText();
 }
 
+void MainFrame::SetDecoderMode(DecoderMode decoder_mode)
+{
+    decoder_mode_ = decoder_mode;
+    if (generic_decoder_item_) {
+        generic_decoder_item_->Check(decoder_mode_ == DecoderMode::Generic);
+    }
+    if (as400_decoder_item_) {
+        as400_decoder_item_->Check(decoder_mode_ == DecoderMode::IbmAs400);
+    }
+
+    if (decoder_mode_ == DecoderMode::IbmAs400) {
+        SetEncoding(TextEncoding::EbcdicCp37);
+        decoder_panel_->Show();
+    } else {
+        SetEncoding(TextEncoding::Ascii);
+        decoder_panel_->Hide();
+    }
+
+    if (right_panel_) {
+        right_panel_->Layout();
+    }
+    UpdateDecoderPanel();
+}
+
+void MainFrame::DetectDecoderMode()
+{
+    SetDecoderMode(as400_parser_.isAs400Tape(tape_image_) ? DecoderMode::IbmAs400 : DecoderMode::Generic);
+}
+
+void MainFrame::UpdateDecoderPanel()
+{
+    if (!decoder_panel_ || decoder_mode_ != DecoderMode::IbmAs400) {
+        return;
+    }
+
+    const auto& elements = tape_image_.elements();
+    if (selected_element_index_ >= elements.size() || !elements[selected_element_index_].isRecord()) {
+        decoder_title_->SetLabel(wxString::FromUTF8("AS/400 record"));
+        decoder_details_->SetLabel(wxString::FromUTF8("Select a data record to inspect its AS/400 label type."));
+        right_panel_->Layout();
+        return;
+    }
+
+    const auto info = as400_parser_.parseRecord(elements[selected_element_index_].record().data);
+    if (info.recognized) {
+        decoder_title_->SetLabel(wxString::Format(
+            wxString::FromUTF8("AS/400 record: %s (%s)"),
+            wxString::FromUTF8(info.name.c_str()),
+            wxString::FromUTF8(info.code.c_str())));
+        decoder_details_->SetLabel(info.details.empty()
+                ? wxString::FromUTF8("No additional label fields decoded.")
+                : wxString::FromUTF8(info.details.c_str()));
+    } else {
+        decoder_title_->SetLabel(wxString::FromUTF8("AS/400 record: Unknown"));
+        decoder_details_->SetLabel(wxString::Format(
+            wxString::FromUTF8("No AS/400 tape label recognized. Leading CP37 text: %s"),
+            wxString::FromUTF8(info.code.c_str())));
+    }
+
+    decoder_details_->Wrap(std::max(240, decoder_panel_->GetClientSize().GetWidth() - 16));
+    right_panel_->Layout();
+}
+
 void MainFrame::UpdateWindowTitle()
 {
     if (loaded_path_.empty()) {
@@ -246,21 +341,24 @@ void MainFrame::UpdateStatusText()
     }
 
     const auto encoding_name = encoding_ == TextEncoding::Ascii ? "ASCII" : "EBCDIC CP 37";
+    const auto decoder_name = decoder_mode_ == DecoderMode::IbmAs400 ? "IBM AS/400" : "Generic";
     if (selected_element_index_ == std::numeric_limits<std::size_t>::max()) {
         SetStatusText(wxString::Format(
-            wxString::FromUTF8("%zu elements, %zu records, %zu tape marks | %s"),
+            wxString::FromUTF8("%zu elements, %zu records, %zu tape marks | %s | %s"),
             tape_image_.elementCount(),
             tape_image_.recordCount(),
             tape_image_.tapeMarkCount(),
-            wxString::FromUTF8(encoding_name)));
+            wxString::FromUTF8(encoding_name),
+            wxString::FromUTF8(decoder_name)));
         return;
     }
 
     SetStatusText(wxString::Format(
-        wxString::FromUTF8("Element %zu | %zu bytes | %s"),
+        wxString::FromUTF8("Element %zu | %zu bytes | %s | %s"),
         selected_element_index_,
         selected_bytes_.size(),
-        wxString::FromUTF8(encoding_name)));
+        wxString::FromUTF8(encoding_name),
+        wxString::FromUTF8(decoder_name)));
 }
 
 void MainFrame::OnOpen(wxCommandEvent&)
@@ -343,12 +441,26 @@ void MainFrame::OnFind(wxCommandEvent&)
 
 void MainFrame::OnEncodingAscii(wxCommandEvent&)
 {
+    if (decoder_mode_ == DecoderMode::IbmAs400) {
+        SetDecoderMode(DecoderMode::Generic);
+        return;
+    }
     SetEncoding(TextEncoding::Ascii);
 }
 
 void MainFrame::OnEncodingEbcdic(wxCommandEvent&)
 {
     SetEncoding(TextEncoding::EbcdicCp37);
+}
+
+void MainFrame::OnDecoderGeneric(wxCommandEvent&)
+{
+    SetDecoderMode(DecoderMode::Generic);
+}
+
+void MainFrame::OnDecoderIbmAs400(wxCommandEvent&)
+{
+    SetDecoderMode(DecoderMode::IbmAs400);
 }
 
 void MainFrame::OnStructureSelected(wxListEvent& event)

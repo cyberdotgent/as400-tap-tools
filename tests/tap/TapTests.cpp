@@ -1,4 +1,6 @@
 #include "HexFormatter.h"
+#include "as400/Cp37.h"
+#include "as400/RecordParser.h"
 #include "tap/Reader.h"
 #include "tap/Scanner.h"
 #include "tap/Writer.h"
@@ -159,6 +161,51 @@ void testHexFormatterDecodesCp37AndHighlightsTextColumn()
     assert(formatted.substr(result.text_offset, result.text_length) == "VOL1");
 }
 
+void testAs400RecordParserIdentifiesLabels()
+{
+    as400::RecordParser parser;
+
+    auto volume_label = as400::encodeCp37("VOL1TEST 0                         TESTNK");
+    volume_label.resize(80, 0x40);
+    const auto volume_info = parser.parseRecord(volume_label);
+    assert(volume_info.recognized);
+    assert(volume_info.type == as400::RecordType::VolumeLabel);
+    assert(volume_info.code == "VOL1");
+    assert(volume_info.details.find("Volume: TEST") != std::string::npos);
+
+    auto header1 = as400::encodeCp37("HDR1QFILEIML        DV4R4 0001000100010026158 99999000000IBMOS400");
+    header1.resize(80, 0x40);
+    const auto header_info = parser.parseRecord(header1);
+    assert(header_info.recognized);
+    assert(header_info.type == as400::RecordType::Header1);
+    assert(header_info.details.find("File: QFILEIML") != std::string::npos);
+}
+
+void testAs400DetectorAcceptsBlankTape()
+{
+    const auto sample_path = std::filesystem::path(TAP_TEST_DATA_DIR) / "blank.tap";
+    tap::Reader reader;
+    const auto read_result = reader.read(sample_path);
+    assert(read_result);
+
+    as400::RecordParser parser;
+    assert(parser.isAs400Tape(read_result.value()));
+
+    tap::TapeImage generic;
+    generic.appendRecord({0x41, 0x42, 0x43});
+    assert(!parser.isAs400Tape(generic));
+}
+
+void testAs400DetectorAcceptsVolumeAndHeaderLabels()
+{
+    tap::TapeImage image;
+    image.appendRecord(as400::encodeCp37("VOL1DV4R4 0"));
+    image.appendRecord(as400::encodeCp37("HDR1QFILEIML        DV4R4 0001000100010026158 99999000000IBMOS400"));
+
+    as400::RecordParser parser;
+    assert(parser.isAs400Tape(image));
+}
+
 } // namespace
 
 int main()
@@ -169,5 +216,8 @@ int main()
     testSampleScannerReportsZuluScsiTailAndReaderAcceptsIt();
     testReaderAcceptsAllExampleTapes();
     testHexFormatterDecodesCp37AndHighlightsTextColumn();
+    testAs400RecordParserIdentifiesLabels();
+    testAs400DetectorAcceptsBlankTape();
+    testAs400DetectorAcceptsVolumeAndHeaderLabels();
     return 0;
 }

@@ -58,6 +58,23 @@ target_include_directories(tap
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 
+add_library(as400 STATIC
+    src/as400/Cp37.cpp
+    src/as400/Cp37.h
+    src/as400/RecordParser.cpp
+    src/as400/RecordParser.h
+)
+
+target_include_directories(as400
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+
+target_link_libraries(as400
+    PUBLIC
+        tap
+)
+
 add_subdirectory(vendor/wxWidgets)
 
 add_executable(simh-tap-tools WIN32
@@ -73,6 +90,7 @@ add_executable(simh-tap-tools WIN32
 
 target_link_libraries(simh-tap-tools
     PRIVATE
+        as400
         tap
         wx::base
         wx::core
@@ -86,6 +104,7 @@ add_executable(tap-tests
 
 target_link_libraries(tap-tests
     PRIVATE
+        as400
         tap
 )
 

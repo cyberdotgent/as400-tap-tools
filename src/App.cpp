@@ -2,9 +2,7 @@
 
 #include "MainFrame.h"
 
-#include <filesystem>
-#include <optional>
-
+#include <wx/cmdline.h>
 #include <wx/string.h>
 
 wxIMPLEMENT_APP(TapeToolsApp);
@@ -20,25 +18,6 @@ std::filesystem::path PathFromWxString(const wxString& value)
 #endif
 }
 
-std::optional<std::filesystem::path> StartupTapePath(int argc, wxChar** argv)
-{
-    bool treat_next_as_path = false;
-    for (int index = 1; index < argc; ++index) {
-        const wxString argument(argv[index]);
-        if (!treat_next_as_path && argument == wxString::FromUTF8("--")) {
-            treat_next_as_path = true;
-            continue;
-        }
-        if (!treat_next_as_path && argument.StartsWith(wxString::FromUTF8("-"))) {
-            continue;
-        }
-
-        return PathFromWxString(argument);
-    }
-
-    return std::nullopt;
-}
-
 } // namespace
 
 bool TapeToolsApp::OnInit()
@@ -49,8 +28,32 @@ bool TapeToolsApp::OnInit()
 
     auto* frame = new MainFrame(wxString::FromUTF8("SIMH Tape Tools"));
     frame->Show(true);
-    if (const auto startup_path = StartupTapePath(argc, argv)) {
-        frame->LoadTapeFile(*startup_path);
+    if (startup_tape_path_) {
+        frame->LoadTapeFile(*startup_tape_path_);
     }
+    return true;
+}
+
+void TapeToolsApp::OnInitCmdLine(wxCmdLineParser& parser)
+{
+    wxApp::OnInitCmdLine(parser);
+    parser.AddParam(
+        wxString::FromUTF8("tape-file"),
+        wxCMD_LINE_VAL_STRING,
+        wxCMD_LINE_PARAM_OPTIONAL);
+}
+
+bool TapeToolsApp::OnCmdLineParsed(wxCmdLineParser& parser)
+{
+    if (!wxApp::OnCmdLineParsed(parser)) {
+        return false;
+    }
+
+    if (parser.GetParamCount() > 0) {
+        startup_tape_path_ = PathFromWxString(parser.GetParam(0));
+    } else {
+        startup_tape_path_.reset();
+    }
+
     return true;
 }

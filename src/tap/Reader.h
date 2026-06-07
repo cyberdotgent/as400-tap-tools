@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Result.h"
+#include "Progress.h"
 #include "TapeImage.h"
 
 #include <filesystem>
@@ -17,8 +18,8 @@ public:
     Reader() = default;
     explicit Reader(ReaderOptions options);
 
-    Result<TapeImage> read(std::istream& input) const;
-    Result<TapeImage> read(const std::filesystem::path& path) const;
+    Result<TapeImage> read(std::istream& input, const ProgressCallback& progress = {}) const;
+    Result<TapeImage> read(const std::filesystem::path& path, const ProgressCallback& progress = {}) const;
 
     const ReaderOptions& options() const;
 

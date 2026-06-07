@@ -20,12 +20,20 @@ std::string fieldValue(const RecordInfo& record, std::string_view name)
 
 } // namespace
 
-std::vector<FileListEntry> collectAs400FileList(const tap::TapeImage& image, const RecordParser& parser)
+std::vector<FileListEntry> collectAs400FileList(
+    const tap::TapeImage& image,
+    const RecordParser& parser,
+    const tap::ProgressCallback& progress)
 {
     std::vector<FileListEntry> entries;
     const auto& elements = image.elements();
+    std::size_t processed = 0;
     for (std::size_t index = 0; index < elements.size(); ++index) {
         const auto& element = elements[index];
+        ++processed;
+        if (progress) {
+            progress(tap::ProgressInfo{processed, elements.size(), 0, false});
+        }
         if (!element.isRecord()) {
             continue;
         }

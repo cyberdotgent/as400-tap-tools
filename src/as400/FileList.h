@@ -1,6 +1,7 @@
 #pragma once
 
 #include "RecordParser.h"
+#include "tap/Progress.h"
 
 #include <cstddef>
 #include <string>
@@ -25,6 +26,9 @@ struct FileListEntry {
     std::string system;
 };
 
-std::vector<FileListEntry> collectAs400FileList(const tap::TapeImage& image, const RecordParser& parser);
+std::vector<FileListEntry> collectAs400FileList(
+    const tap::TapeImage& image,
+    const RecordParser& parser,
+    const tap::ProgressCallback& progress = {});
 
 } // namespace as400

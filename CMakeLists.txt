@@ -90,6 +90,8 @@ add_executable(simh-tap-tools WIN32
     src/HexFormatter.h
     src/MainFrame.cpp
     src/MainFrame.h
+    src/TapeProgressDialog.cpp
+    src/TapeProgressDialog.h
     src/TapeElementView.cpp
     src/TapeElementView.h
 )

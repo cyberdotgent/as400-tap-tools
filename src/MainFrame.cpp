@@ -1,6 +1,7 @@
 #include "MainFrame.h"
 
 #include "As400FileListDialog.h"
+#include "TapeProgressDialog.h"
 #include "TapeElementView.h"
 #include "as400/FileList.h"
 #include "tap/Reader.h"
@@ -167,7 +168,16 @@ void MainFrame::BuildContent()
 void MainFrame::LoadTapeFile(const std::filesystem::path& path)
 {
     tap::Reader reader;
-    const auto read_result = reader.read(path);
+    const auto read_result = [&]() {
+        TapeProgressDialog progress(this, "Loading tape file");
+        return reader.read(path, [&progress](const tap::ProgressInfo& info) {
+            if (info.counting) {
+                progress.Pulse("Counting tape records...", info.current);
+                return;
+            }
+            progress.SetProgress("Loading tape records...", info.current, info.total);
+        });
+    }();
     if (!read_result) {
         const auto& error = read_result.error();
         wxMessageBox(
@@ -219,6 +229,11 @@ void MainFrame::PopulateStructureList()
     structure_list_->DeleteAllItems();
 
     const auto& elements = tape_image_.elements();
+    if (elements.empty()) {
+        return;
+    }
+
+    TapeProgressDialog progress(this, "Rendering tape structure");
     for (std::size_t index = 0; index < elements.size(); ++index) {
         const auto view = describeTapeElement(elements[index]);
         const auto row = structure_list_->InsertItem(static_cast<long>(index), wxString::Format("%zu", index));
@@ -227,6 +242,7 @@ void MainFrame::PopulateStructureList()
         structure_list_->SetItem(row, 3, Utf8(view.size));
         structure_list_->SetItem(row, 4, Utf8(view.details));
         structure_list_->SetItemData(row, static_cast<long>(index));
+        progress.SetProgress("Rendering tape structure...", index + 1, elements.size());
     }
 }
 
@@ -531,8 +547,14 @@ void MainFrame::OnAs400FileList(wxCommandEvent&)
         return;
     }
 
-    const auto files = as400::collectAs400FileList(tape_image_, as400_parser_);
-    if (files.empty()) {
+    const auto file_entries = [&]() {
+        TapeProgressDialog progress(this, "Building file list");
+        const auto progress_callback = [&progress](const tap::ProgressInfo& info) {
+            progress.SetProgress("Scanning tape records for files...", info.current, info.total);
+        };
+        return as400::collectAs400FileList(tape_image_, as400_parser_, progress_callback);
+    }();
+    if (file_entries.empty()) {
         wxMessageBox(
             wxString::FromUTF8("No HDR1 file labels were found on this tape."),
             wxString::FromUTF8("IBM AS/400 File List"),
@@ -541,7 +563,7 @@ void MainFrame::OnAs400FileList(wxCommandEvent&)
         return;
     }
 
-    As400FileListDialog dialog(this, files);
+    As400FileListDialog dialog(this, file_entries);
     if (dialog.ShowModal() == wxID_OK && dialog.HasSelection()) {
         JumpToElement(dialog.SelectedElementIndex());
     }

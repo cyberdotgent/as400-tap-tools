@@ -28,105 +28,185 @@ bool readPayload(std::istream& input, std::vector<std::uint8_t>& data, std::uint
     return input.gcount() == static_cast<std::streamsize>(data.size());
 }
 
+enum class ScanStep {
+    Continue,
+    Stop,
+    Error,
+};
+
+ScanStep readNextElement(std::istream& input, std::uint64_t& offset, TapeImage* image, std::vector<Error>& diagnostics)
+{
+    const auto word_result = simh::readWord(input, offset);
+    if (!word_result) {
+        diagnostics.push_back(word_result.error());
+        return ScanStep::Error;
+    }
+
+    const auto word = word_result.value();
+    if (word == simh::TapeMarkWord) {
+        if (image) {
+            image->insert(image->elementCount(), TapeElement(TapeMark{offset}));
+        }
+        offset += 4;
+        return ScanStep::Continue;
+    }
+    if (word == simh::EraseGapWord) {
+        if (image) {
+            image->insert(image->elementCount(), TapeElement(EraseGap{offset}));
+        }
+        offset += 4;
+        return ScanStep::Continue;
+    }
+    if (word == simh::EndOfMediumWord) {
+        if (image) {
+            image->insert(image->elementCount(), TapeElement(EndOfMedium{offset}));
+        }
+        return ScanStep::Stop;
+    }
+
+    if (!simh::isStandardDataRecord(word)) {
+        diagnostics.push_back(Error{
+            ErrorCode::UnsupportedFormat,
+            "unsupported SIMH tape object class or marker",
+            offset,
+        });
+        return ScanStep::Error;
+    }
+
+    const auto length = simh::recordLength(word);
+    if (length > simh::StandardLengthMask) {
+        diagnostics.push_back(Error{
+            ErrorCode::InvalidRecordLength,
+            "SIMH standard record length exceeds 24 bits",
+            offset,
+        });
+        return ScanStep::Error;
+    }
+
+    const auto padded_length = (length + 1U) & ~1U;
+    std::vector<std::uint8_t> payload;
+    if (!readPayload(input, payload, padded_length)) {
+        diagnostics.push_back(Error{
+            ErrorCode::TrailingPartialRecord,
+            "trailing partial SIMH tape record",
+            offset,
+        });
+        return ScanStep::Error;
+    }
+    payload.resize(length);
+
+    const auto trailer_offset = offset + 4 + padded_length;
+    const auto trailer_result = simh::readWord(input, trailer_offset);
+    if (!trailer_result) {
+        diagnostics.push_back(Error{
+            ErrorCode::TrailingPartialRecord,
+            "trailing SIMH tape record without matching trailer",
+            offset,
+        });
+        return ScanStep::Error;
+    }
+
+    if (trailer_result.value() != word) {
+        diagnostics.push_back(Error{
+            ErrorCode::MismatchedRecordTrailer,
+            "SIMH tape record trailing length does not match leading length",
+            trailer_offset,
+        });
+        return ScanStep::Error;
+    }
+
+    if (image) {
+        Record record;
+        record.data = std::move(payload);
+        record.offset = offset;
+        record.encoded_length = word;
+        record.record_class = toRecordClass(word);
+        image->insert(image->elementCount(), TapeElement(std::move(record)));
+    }
+
+    offset = trailer_offset + 4;
+    return ScanStep::Continue;
+}
+
 } // namespace
 
-ScanResult Scanner::scan(std::istream& input) const
+Result<std::size_t> Scanner::count(std::istream& input, const ProgressCallback& progress) const
 {
-    ScanResult result;
+    std::vector<Error> diagnostics;
     std::uint64_t offset = 0;
+    std::size_t object_count = 0;
 
     while (true) {
         if (input.peek() == std::char_traits<char>::eof()) {
             break;
         }
 
-        const auto word_result = simh::readWord(input, offset);
-        if (!word_result) {
-            result.diagnostics.push_back(word_result.error());
+        const auto step = readNextElement(input, offset, nullptr, diagnostics);
+        if (step == ScanStep::Error) {
+            break;
+        }
+        ++object_count;
+        if (progress) {
+            progress(ProgressInfo{object_count, 0, offset, true});
+        }
+        if (step == ScanStep::Stop) {
+            break;
+        }
+    }
+
+    if (!diagnostics.empty()) {
+        if (diagnostics.front().code == ErrorCode::TrailingPartialRecord) {
+            return Result<std::size_t>::ok(object_count);
+        }
+        return Result<std::size_t>::fail(diagnostics.front());
+    }
+
+    return Result<std::size_t>::ok(object_count);
+}
+
+Result<std::size_t> Scanner::count(const std::filesystem::path& path, const ProgressCallback& progress) const
+{
+    std::ifstream input(path, std::ios::binary);
+    if (!input) {
+        return Result<std::size_t>::fail(Error{
+            ErrorCode::IoError,
+            "failed to open SIMH tape file for reading",
+            0,
+        });
+    }
+
+    return count(input, progress);
+}
+
+ScanResult Scanner::scan(std::istream& input, std::size_t total_objects, const ProgressCallback& progress) const
+{
+    ScanResult result;
+    std::uint64_t offset = 0;
+    std::size_t object_count = 0;
+
+    while (true) {
+        if (input.peek() == std::char_traits<char>::eof()) {
             break;
         }
 
-        const auto word = word_result.value();
-        if (word == simh::TapeMarkWord) {
-            result.image.insert(result.image.elementCount(), TapeElement(TapeMark{offset}));
-            offset += 4;
-            continue;
-        }
-        if (word == simh::EraseGapWord) {
-            result.image.insert(result.image.elementCount(), TapeElement(EraseGap{offset}));
-            offset += 4;
-            continue;
-        }
-        if (word == simh::EndOfMediumWord) {
-            result.image.insert(result.image.elementCount(), TapeElement(EndOfMedium{offset}));
+        const auto step = readNextElement(input, offset, &result.image, result.diagnostics);
+        if (step == ScanStep::Error) {
             break;
         }
 
-        if (!simh::isStandardDataRecord(word)) {
-            result.diagnostics.push_back(Error{
-                ErrorCode::UnsupportedFormat,
-                "unsupported SIMH tape object class or marker",
-                offset,
-            });
+        ++object_count;
+        if (progress) {
+            progress(ProgressInfo{object_count, total_objects, offset, false});
+        }
+        if (step == ScanStep::Stop) {
             break;
         }
-
-        const auto length = simh::recordLength(word);
-        if (length > simh::StandardLengthMask) {
-            result.diagnostics.push_back(Error{
-                ErrorCode::InvalidRecordLength,
-                "SIMH standard record length exceeds 24 bits",
-                offset,
-            });
-            break;
-        }
-
-        const auto padded_length = (length + 1U) & ~1U;
-        std::vector<std::uint8_t> payload;
-        if (!readPayload(input, payload, padded_length)) {
-            result.diagnostics.push_back(Error{
-                ErrorCode::TrailingPartialRecord,
-                "trailing partial SIMH tape record",
-                offset,
-            });
-            break;
-        }
-        payload.resize(length);
-
-        const auto trailer_offset = offset + 4 + padded_length;
-        const auto trailer_result = simh::readWord(input, trailer_offset);
-        if (!trailer_result) {
-            result.diagnostics.push_back(Error{
-                ErrorCode::TrailingPartialRecord,
-                "trailing SIMH tape record without matching trailer",
-                offset,
-            });
-            break;
-        }
-
-        if (trailer_result.value() != word) {
-            result.diagnostics.push_back(Error{
-                ErrorCode::MismatchedRecordTrailer,
-                "SIMH tape record trailing length does not match leading length",
-                trailer_offset,
-            });
-            break;
-        }
-
-        Record record;
-        record.data = std::move(payload);
-        record.offset = offset;
-        record.encoded_length = word;
-        record.record_class = toRecordClass(word);
-        result.image.insert(result.image.elementCount(), TapeElement(std::move(record)));
-
-        offset = trailer_offset + 4;
     }
 
     return result;
 }
 
-ScanResult Scanner::scan(const std::filesystem::path& path) const
+ScanResult Scanner::scan(const std::filesystem::path& path, std::size_t total_objects, const ProgressCallback& progress) const
 {
     std::ifstream input(path, std::ios::binary);
     if (!input) {
@@ -139,7 +219,7 @@ ScanResult Scanner::scan(const std::filesystem::path& path) const
         return result;
     }
 
-    return scan(input);
+    return scan(input, total_objects, progress);
 }
 
 } // namespace tap

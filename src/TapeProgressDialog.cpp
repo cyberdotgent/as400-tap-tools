@@ -29,6 +29,7 @@ TapeProgressDialog::TapeProgressDialog(wxWindow* parent, std::string_view title)
     root->Add(gauge_, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     root->Add(count_label_, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     SetSizerAndFit(root);
+    SetMinClientSize(GetClientSize());
     CentreOnParent();
     Show();
     Raise();
@@ -61,7 +62,13 @@ void TapeProgressDialog::RefreshText(std::string_view activity, std::size_t curr
     } else {
         count_label_->SetLabel(wxString::Format(wxString::FromUTF8("%zu / %zu bytes read"), current, total));
     }
+    UpdateSizeToContent();
+}
+
+void TapeProgressDialog::UpdateSizeToContent()
+{
     Layout();
+    Fit();
 }
 
 void TapeProgressDialog::PumpEvents()

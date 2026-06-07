@@ -24,6 +24,7 @@ public:
 
 private:
     void RefreshText(std::string_view activity, std::size_t current, std::size_t total, bool indeterminate);
+    void UpdateSizeToContent();
     void PumpEvents();
     void OnClose(wxCloseEvent& event);
 

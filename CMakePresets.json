@@ -1,0 +1,50 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "linux-amd64",
+      "displayName": "Linux amd64",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/linux-amd64",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_POSITION_INDEPENDENT_CODE": "ON"
+      }
+    },
+    {
+      "name": "windows-amd64-mingw",
+      "displayName": "Windows amd64 MinGW",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-amd64-mingw",
+      "toolchainFile": "${sourceDir}/cmake/toolchains/mingw-w64-x86_64.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-amd64",
+      "configurePreset": "linux-amd64",
+      "targets": [
+        "simh-tap-tools"
+      ]
+    },
+    {
+      "name": "windows-amd64-mingw",
+      "configurePreset": "windows-amd64-mingw",
+      "targets": [
+        "simh-tap-tools"
+      ]
+    }
+  ]
+}

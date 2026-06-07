@@ -1,5 +1,6 @@
 #include "HexFormatter.h"
 #include "as400/Cp37.h"
+#include "as400/FileList.h"
 #include "as400/RecordParser.h"
 #include "tap/Reader.h"
 #include "tap/Scanner.h"
@@ -252,6 +253,32 @@ void testAs400DetectorAcceptsVolumeAndHeaderLabels()
     assert(parser.isAs400Tape(image));
 }
 
+void testAs400FileListCollectsHeaderRecords()
+{
+    tap::TapeImage image;
+    image.appendRecord(as400::encodeCp37("VOL1DV4R4 0"));
+    image.appendRecord(cp37Label({
+        {0, "HDR1"},
+        {4, "QFILEIML"},
+        {21, "DV4R4"},
+        {27, "0001"},
+        {31, "0001"},
+        {35, "0001"},
+        {41, "026158"},
+        {47, "99999"},
+        {60, "IBMOS400"},
+    }));
+    image.appendTapeMark();
+
+    as400::RecordParser parser;
+    const auto files = as400::collectAs400FileList(image, parser);
+    assert(files.size() == 1);
+    assert(files[0].element_index == 1);
+    assert(files[0].file_name == "QFILEIML");
+    assert(files[0].created == "026158");
+    assert(files[0].expires == "Does not expire");
+}
+
 } // namespace
 
 int main()
@@ -265,5 +292,6 @@ int main()
     testAs400RecordParserIdentifiesLabels();
     testAs400DetectorAcceptsBlankTape();
     testAs400DetectorAcceptsVolumeAndHeaderLabels();
+    testAs400FileListCollectsHeaderRecords();
     return 0;
 }

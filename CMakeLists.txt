@@ -61,6 +61,8 @@ target_include_directories(tap
 add_library(as400 STATIC
     src/as400/Cp37.cpp
     src/as400/Cp37.h
+    src/as400/FileList.cpp
+    src/as400/FileList.h
     src/as400/RecordParser.cpp
     src/as400/RecordParser.h
 )
@@ -80,6 +82,8 @@ add_subdirectory(vendor/wxWidgets)
 add_executable(simh-tap-tools WIN32
     src/App.cpp
     src/App.h
+    src/As400FileListDialog.cpp
+    src/As400FileListDialog.h
     src/DecoderPropertyPane.cpp
     src/DecoderPropertyPane.h
     src/HexFormatter.cpp

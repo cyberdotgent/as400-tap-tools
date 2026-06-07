@@ -1,6 +1,8 @@
 #include "MainFrame.h"
 
+#include "As400FileListDialog.h"
 #include "TapeElementView.h"
+#include "as400/FileList.h"
 #include "tap/Reader.h"
 
 #include <algorithm>
@@ -36,6 +38,7 @@ constexpr int EncodingAsciiMenuId = wxID_HIGHEST + 1;
 constexpr int EncodingEbcdicMenuId = wxID_HIGHEST + 2;
 constexpr int DecoderGenericMenuId = wxID_HIGHEST + 3;
 constexpr int DecoderIbmAs400MenuId = wxID_HIGHEST + 4;
+constexpr int As400FileListMenuId = wxID_HIGHEST + 5;
 
 constexpr long NoSelection = -1;
 
@@ -76,6 +79,7 @@ MainFrame::MainFrame(const wxString& title)
     Bind(wxEVT_MENU, &MainFrame::OnEncodingEbcdic, this, EncodingEbcdicMenuId);
     Bind(wxEVT_MENU, &MainFrame::OnDecoderGeneric, this, DecoderGenericMenuId);
     Bind(wxEVT_MENU, &MainFrame::OnDecoderIbmAs400, this, DecoderIbmAs400MenuId);
+    Bind(wxEVT_MENU, &MainFrame::OnAs400FileList, this, As400FileListMenuId);
     Bind(wxEVT_MENU, &MainFrame::OnAbout, this, AboutMenuId);
     structure_list_->Bind(wxEVT_LIST_ITEM_SELECTED, &MainFrame::OnStructureSelected, this);
 }
@@ -103,9 +107,13 @@ void MainFrame::BuildMenuBar()
     as400_decoder_item_ = decoder_menu->AppendRadioItem(DecoderIbmAs400MenuId, wxString::FromUTF8("&IBM AS/400"));
     generic_decoder_item_->Check(true);
 
+    auto* as400_menu = new wxMenu();
+    as400_menu->Append(As400FileListMenuId, wxString::FromUTF8("&File list...\tCtrl-L"));
+
     auto* view_menu = new wxMenu();
     view_menu->AppendSubMenu(encoding_menu, wxString::FromUTF8("&Encoding"));
     view_menu->AppendSubMenu(decoder_menu, wxString::FromUTF8("&Decoders"));
+    view_menu->AppendSubMenu(as400_menu, wxString::FromUTF8("&IBM AS/400"));
 
     auto* help_menu = new wxMenu();
     help_menu->Append(AboutMenuId, wxString::FromUTF8("&About"));
@@ -237,6 +245,19 @@ void MainFrame::ShowSelectedElement(std::size_t index)
     RefreshHexView();
     UpdateDecoderPanel();
     UpdateStatusText();
+}
+
+void MainFrame::JumpToElement(std::size_t index)
+{
+    const auto& elements = tape_image_.elements();
+    if (index >= elements.size()) {
+        return;
+    }
+
+    structure_list_->SetItemState(static_cast<long>(index), wxLIST_STATE_SELECTED | wxLIST_STATE_FOCUSED, wxLIST_STATE_SELECTED | wxLIST_STATE_FOCUSED);
+    structure_list_->EnsureVisible(static_cast<long>(index));
+    ShowSelectedElement(index);
+    structure_list_->SetFocus();
 }
 
 void MainFrame::RefreshHexView()
@@ -488,6 +509,42 @@ void MainFrame::OnDecoderGeneric(wxCommandEvent&)
 void MainFrame::OnDecoderIbmAs400(wxCommandEvent&)
 {
     SetDecoderMode(DecoderMode::IbmAs400);
+}
+
+void MainFrame::OnAs400FileList(wxCommandEvent&)
+{
+    if (tape_image_.empty()) {
+        wxMessageBox(
+            wxString::FromUTF8("Load a tape before opening the IBM AS/400 file list."),
+            wxString::FromUTF8("IBM AS/400 File List"),
+            wxOK | wxICON_ERROR,
+            this);
+        return;
+    }
+
+    if (!as400_parser_.isAs400Tape(tape_image_)) {
+        wxMessageBox(
+            wxString::FromUTF8("The current tape is not recognized as an IBM AS/400 tape."),
+            wxString::FromUTF8("IBM AS/400 File List"),
+            wxOK | wxICON_ERROR,
+            this);
+        return;
+    }
+
+    const auto files = as400::collectAs400FileList(tape_image_, as400_parser_);
+    if (files.empty()) {
+        wxMessageBox(
+            wxString::FromUTF8("No HDR1 file labels were found on this tape."),
+            wxString::FromUTF8("IBM AS/400 File List"),
+            wxOK | wxICON_INFORMATION,
+            this);
+        return;
+    }
+
+    As400FileListDialog dialog(this, files);
+    if (dialog.ShowModal() == wxID_OK && dialog.HasSelection()) {
+        JumpToElement(dialog.SelectedElementIndex());
+    }
 }
 
 void MainFrame::OnStructureSelected(wxListEvent& event)

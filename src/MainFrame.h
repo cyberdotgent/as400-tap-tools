@@ -38,6 +38,7 @@ private:
     void ClearTape();
     void PopulateStructureList();
     void ShowSelectedElement(std::size_t index);
+    void JumpToElement(std::size_t index);
     void RefreshHexView();
     void SetEncoding(TextEncoding encoding);
     void SetDecoderMode(DecoderMode decoder_mode);
@@ -54,6 +55,7 @@ private:
     void OnEncodingEbcdic(wxCommandEvent& event);
     void OnDecoderGeneric(wxCommandEvent& event);
     void OnDecoderIbmAs400(wxCommandEvent& event);
+    void OnAs400FileList(wxCommandEvent& event);
     void OnStructureSelected(wxListEvent& event);
     void OnAbout(wxCommandEvent& event);
 

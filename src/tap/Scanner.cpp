@@ -85,8 +85,8 @@ ScanResult Scanner::scan(std::istream& input) const
         std::vector<std::uint8_t> payload;
         if (!readPayload(input, payload, padded_length)) {
             result.diagnostics.push_back(Error{
-                ErrorCode::UnexpectedEof,
-                "unexpected end of file while reading SIMH tape record payload",
+                ErrorCode::TrailingPartialRecord,
+                "trailing partial SIMH tape record",
                 offset,
             });
             break;
@@ -96,7 +96,11 @@ ScanResult Scanner::scan(std::istream& input) const
         const auto trailer_offset = offset + 4 + padded_length;
         const auto trailer_result = simh::readWord(input, trailer_offset);
         if (!trailer_result) {
-            result.diagnostics.push_back(trailer_result.error());
+            result.diagnostics.push_back(Error{
+                ErrorCode::TrailingPartialRecord,
+                "trailing SIMH tape record without matching trailer",
+                offset,
+            });
             break;
         }
 

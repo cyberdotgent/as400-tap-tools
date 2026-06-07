@@ -99,7 +99,7 @@ void testMismatchedTrailerFailsStrictRead()
     assert(result.error().offset == 8);
 }
 
-void testSampleScannerReportsValidPrefixAndDiagnostic()
+void testSampleScannerReportsZuluScsiTailAndReaderAcceptsIt()
 {
     const auto sample_path = std::filesystem::path(TAP_TEST_DATA_DIR) / "blank.tap";
     tap::Scanner scanner;
@@ -108,13 +108,41 @@ void testSampleScannerReportsValidPrefixAndDiagnostic()
     assert(result.image.recordCount() == 1);
     assert(result.image.tapeMarkCount() == 21);
     assert(!result.diagnostics.empty());
-    assert(result.diagnostics.front().code == tap::ErrorCode::UnexpectedEof);
+    assert(result.diagnostics.front().code == tap::ErrorCode::TrailingPartialRecord);
     assert(result.diagnostics.front().offset == 172);
 
     tap::Reader reader;
-    const auto strict_read = reader.read(sample_path);
+    const auto read_result = reader.read(sample_path);
+    assert(read_result);
+    assert(read_result.value().recordCount() == 1);
+    assert(read_result.value().tapeMarkCount() == 21);
+
+    tap::ReaderOptions strict_options;
+    strict_options.allow_zuluscsi_trailing_partial_record = false;
+    tap::Reader strict_reader(strict_options);
+    const auto strict_read = strict_reader.read(sample_path);
     assert(!strict_read);
-    assert(strict_read.error().code == tap::ErrorCode::UnexpectedEof);
+    assert(strict_read.error().code == tap::ErrorCode::TrailingPartialRecord);
+}
+
+void testReaderAcceptsAllExampleTapes()
+{
+    const auto examples_path = std::filesystem::path(TAP_TEST_DATA_DIR);
+    const std::vector<std::string> examples{
+        "Autocoder+IOCS.tap",
+        "Autocoder.Weaver.tap",
+        "BB-D782F-BE_VMS_3.5.tap",
+        "Fortran_v3m0.tap",
+        "Fortran_v3m4.tap",
+        "blank.tap",
+    };
+
+    tap::Reader reader;
+    for (const auto& example : examples) {
+        const auto read_result = reader.read(examples_path / example);
+        assert(read_result);
+        assert(!read_result.value().empty());
+    }
 }
 
 } // namespace
@@ -124,6 +152,7 @@ int main()
     testTapeImageEditing();
     testRoundTripWithOddRecord();
     testMismatchedTrailerFailsStrictRead();
-    testSampleScannerReportsValidPrefixAndDiagnostic();
+    testSampleScannerReportsZuluScsiTailAndReaderAcceptsIt();
+    testReaderAcceptsAllExampleTapes();
     return 0;
 }

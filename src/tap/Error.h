@@ -8,6 +8,7 @@ namespace tap {
 enum class ErrorCode {
     IoError,
     UnexpectedEof,
+    TrailingPartialRecord,
     InvalidRecordLength,
     MismatchedRecordTrailer,
     UnsupportedFormat

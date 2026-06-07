@@ -8,10 +8,22 @@
 
 namespace tap {
 
+struct ReaderOptions {
+    bool allow_zuluscsi_trailing_partial_record = true;
+};
+
 class Reader {
 public:
+    Reader() = default;
+    explicit Reader(ReaderOptions options);
+
     Result<TapeImage> read(std::istream& input) const;
     Result<TapeImage> read(const std::filesystem::path& path) const;
+
+    const ReaderOptions& options() const;
+
+private:
+    ReaderOptions options_;
 };
 
 } // namespace tap

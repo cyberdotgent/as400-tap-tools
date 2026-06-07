@@ -3,15 +3,32 @@
 #include "Scanner.h"
 
 #include <fstream>
+#include <utility>
 
 namespace tap {
+namespace {
+
+bool isZuluScsiTrailingPartialRecord(const Error& diagnostic)
+{
+    return diagnostic.code == ErrorCode::TrailingPartialRecord;
+}
+
+} // namespace
+
+Reader::Reader(ReaderOptions options)
+    : options_(options)
+{
+}
 
 Result<TapeImage> Reader::read(std::istream& input) const
 {
     Scanner scanner;
     auto scan_result = scanner.scan(input);
     if (!scan_result.diagnostics.empty()) {
-        return Result<TapeImage>::fail(scan_result.diagnostics.front());
+        const auto& diagnostic = scan_result.diagnostics.front();
+        if (!options_.allow_zuluscsi_trailing_partial_record || !isZuluScsiTrailingPartialRecord(diagnostic)) {
+            return Result<TapeImage>::fail(diagnostic);
+        }
     }
 
     return Result<TapeImage>::ok(std::move(scan_result.image));
@@ -29,6 +46,11 @@ Result<TapeImage> Reader::read(const std::filesystem::path& path) const
     }
 
     return read(input);
+}
+
+const ReaderOptions& Reader::options() const
+{
+    return options_;
 }
 
 } // namespace tap

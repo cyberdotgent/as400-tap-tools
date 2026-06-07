@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <wx/aboutdlg.h>
 #include <wx/clipbrd.h>
@@ -221,6 +222,7 @@ void MainFrame::LoadTapeFile(const std::filesystem::path& path)
 
     tape_image_ = read_result.value();
     loaded_path_ = path;
+    file_list_entries_.clear();
     selected_bytes_.clear();
     selected_element_index_ = std::numeric_limits<std::size_t>::max();
     next_search_offset_ = 0;
@@ -242,6 +244,7 @@ void MainFrame::ClearTape()
 {
     tape_image_ = tap::TapeImage();
     loaded_path_.clear();
+    file_list_entries_.clear();
     selected_bytes_.clear();
     selected_element_index_ = std::numeric_limits<std::size_t>::max();
     next_search_offset_ = 0;
@@ -255,6 +258,7 @@ void MainFrame::ClearTape()
 void MainFrame::PopulateStructureList()
 {
     structure_list_->DeleteAllItems();
+    file_list_entries_.clear();
 
     const auto& elements = tape_image_.elements();
     if (elements.empty()) {
@@ -275,6 +279,13 @@ void MainFrame::PopulateStructureList()
         const auto current = index + 1;
         if (shouldUpdateProgress(current, elements.size(), last_progress_records, step)) {
             progress.SetProgress("Rendering tape structure...", current, elements.size());
+        }
+
+        if (elements[index].isRecord()) {
+            const auto record = as400_parser_.parseRecord(elements[index].record().data);
+            if (const auto entry = as400::makeAs400FileListEntry(index, record)) {
+                file_list_entries_.push_back(std::move(*entry));
+            }
         }
     }
 }
@@ -580,13 +591,7 @@ void MainFrame::OnAs400FileList(wxCommandEvent&)
         return;
     }
 
-    const auto file_entries = [&]() {
-        TapeProgressDialog progress(this, "Building file list", "records");
-        return as400::collectAs400FileList(tape_image_, as400_parser_, [&progress](const tap::ProgressInfo& info) {
-            progress.SetProgress("Scanning tape records for files...", info.bytes_read, info.bytes_total);
-        });
-    }();
-    if (file_entries.empty()) {
+    if (file_list_entries_.empty()) {
         wxMessageBox(
             wxString::FromUTF8("No HDR1 file labels were found on this tape."),
             wxString::FromUTF8("IBM AS/400 File List"),
@@ -595,7 +600,7 @@ void MainFrame::OnAs400FileList(wxCommandEvent&)
         return;
     }
 
-    As400FileListDialog dialog(this, file_entries);
+    As400FileListDialog dialog(this, file_list_entries_);
     if (dialog.ShowModal() != wxID_CANCEL && dialog.HasSelection()) {
         JumpToElement(dialog.SelectedElementIndex());
     }

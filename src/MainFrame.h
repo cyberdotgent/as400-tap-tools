@@ -2,6 +2,7 @@
 
 #include "DecoderPropertyPane.h"
 #include "HexFormatter.h"
+#include "as400/FileList.h"
 #include "as400/RecordParser.h"
 #include "tap/TapeImage.h"
 
@@ -72,6 +73,7 @@ private:
     as400::RecordParser as400_parser_;
     tap::TapeImage tape_image_;
     std::filesystem::path loaded_path_;
+    std::vector<as400::FileListEntry> file_list_entries_;
     std::vector<std::uint8_t> selected_bytes_;
     std::size_t selected_element_index_ = std::numeric_limits<std::size_t>::max();
     TextEncoding encoding_ = TextEncoding::Ascii;

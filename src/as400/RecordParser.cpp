@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <iomanip>
 #include <sstream>
 #include <utility>
 
@@ -36,6 +37,85 @@ void appendField(std::vector<RecordField>& fields, const char* label, const std:
         return;
     }
     fields.push_back(RecordField{label, value});
+}
+
+bool isDigits(const std::string& value)
+{
+    return std::all_of(value.begin(), value.end(), [](char ch) {
+        return std::isdigit(static_cast<unsigned char>(ch)) != 0;
+    });
+}
+
+bool isLeapYear(int year)
+{
+    return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
+}
+
+std::string decimalString(int value)
+{
+    return std::to_string(value);
+}
+
+std::string isoDateString(int year, int month, int day)
+{
+    std::ostringstream output;
+    output << std::setfill('0')
+           << std::setw(4) << year
+           << '-'
+           << std::setw(2) << month
+           << '-'
+           << std::setw(2) << day;
+    return output.str();
+}
+
+RecordField makeDecodedDateField(const char* label, const std::string& raw_value, bool expiration_date)
+{
+    RecordField result{label, raw_value, {}};
+    if (raw_value.empty()) {
+        return result;
+    }
+
+    if (expiration_date && raw_value == "99999") {
+        result.value = "Does not expire";
+        result.children.push_back(RecordField{"Raw", raw_value, {}});
+        return result;
+    }
+
+    if (raw_value.size() != 6 || !isDigits(raw_value)) {
+        return result;
+    }
+
+    const auto century = raw_value[0] - '0';
+    const auto year_in_century = std::stoi(raw_value.substr(1, 2));
+    const auto day_of_year = std::stoi(raw_value.substr(3, 3));
+    const auto year = 2000 + (century * 100) + year_in_century;
+    const auto max_day = isLeapYear(year) ? 366 : 365;
+    if (day_of_year < 1 || day_of_year > max_day) {
+        return result;
+    }
+
+    static constexpr int month_lengths_common[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+    int remaining = day_of_year;
+    int month = 1;
+    for (const auto month_length_common : month_lengths_common) {
+        auto month_length = month_length_common;
+        if (month == 2 && isLeapYear(year)) {
+            month_length = 29;
+        }
+        if (remaining <= month_length) {
+            break;
+        }
+        remaining -= month_length;
+        ++month;
+    }
+
+    result.children.push_back(RecordField{"Raw", raw_value, {}});
+    result.children.push_back(RecordField{"Year", decimalString(year), {}});
+    result.children.push_back(RecordField{"Day of year", decimalString(day_of_year), {}});
+    result.children.push_back(RecordField{"Month", decimalString(month), {}});
+    result.children.push_back(RecordField{"Day", decimalString(remaining), {}});
+    result.children.push_back(RecordField{"Date", isoDateString(year, month, remaining), {}});
+    return result;
 }
 
 std::string formatDetails(const std::vector<RecordField>& fields)
@@ -80,8 +160,8 @@ RecordInfo parseHeader1(const std::string& text)
     appendField(fields, "Section", field(text, 27, 4));
     appendField(fields, "Sequence", field(text, 31, 4));
     appendField(fields, "Generation", field(text, 35, 4));
-    appendField(fields, "Created", field(text, 41, 6));
-    appendField(fields, "Expires", field(text, 47, 6));
+    fields.push_back(makeDecodedDateField("Created", field(text, 41, 6), false));
+    fields.push_back(makeDecodedDateField("Expires", field(text, 47, 6), true));
     appendField(fields, "System", field(text, 60, 13));
     return makeInfo(RecordType::Header1, "HDR1", "Data set header 1", std::move(fields));
 }

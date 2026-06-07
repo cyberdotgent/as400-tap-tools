@@ -12,6 +12,7 @@
 #include <initializer_list>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -24,6 +25,15 @@ std::string bytes(std::initializer_list<unsigned char> values)
         result.push_back(static_cast<char>(value));
     }
     return result;
+}
+
+std::vector<std::uint8_t> cp37Label(std::initializer_list<std::pair<std::size_t, std::string>> fields)
+{
+    std::string label(80, ' ');
+    for (const auto& field : fields) {
+        label.replace(field.first, field.second.size(), field.second);
+    }
+    return as400::encodeCp37(label);
 }
 
 void testTapeImageEditing()
@@ -177,8 +187,17 @@ void testAs400RecordParserIdentifiesLabels()
     assert(volume_info.fields[0].name == "Record type");
     assert(volume_info.fields[0].value == "VOL1");
 
-    auto header1 = as400::encodeCp37("HDR1QFILEIML        DV4R4 0001000100010026158 99999000000IBMOS400");
-    header1.resize(80, 0x40);
+    const auto header1 = cp37Label({
+        {0, "HDR1"},
+        {4, "QFILEIML"},
+        {21, "DV4R4"},
+        {27, "0001"},
+        {31, "0001"},
+        {35, "0001"},
+        {41, "026158"},
+        {47, "99999"},
+        {60, "IBMOS400"},
+    });
     const auto header_info = parser.parseRecord(header1);
     assert(header_info.recognized);
     assert(header_info.type == as400::RecordType::Header1);
@@ -186,6 +205,26 @@ void testAs400RecordParserIdentifiesLabels()
     assert(std::any_of(header_info.fields.begin(), header_info.fields.end(), [](const as400::RecordField& field) {
         return field.name == "File" && field.value.find("QFILEIML") == 0;
     }));
+    const auto created = std::find_if(header_info.fields.begin(), header_info.fields.end(), [](const as400::RecordField& field) {
+        return field.name == "Created";
+    });
+    assert(created != header_info.fields.end());
+    assert(created->value == "026158");
+    assert(std::any_of(created->children.begin(), created->children.end(), [](const as400::RecordField& field) {
+        return field.name == "Year" && field.value == "2026";
+    }));
+    assert(std::any_of(created->children.begin(), created->children.end(), [](const as400::RecordField& field) {
+        return field.name == "Month" && field.value == "6";
+    }));
+    assert(std::any_of(created->children.begin(), created->children.end(), [](const as400::RecordField& field) {
+        return field.name == "Day" && field.value == "7";
+    }));
+
+    const auto expires = std::find_if(header_info.fields.begin(), header_info.fields.end(), [](const as400::RecordField& field) {
+        return field.name == "Expires";
+    });
+    assert(expires != header_info.fields.end());
+    assert(expires->value == "Does not expire");
 }
 
 void testAs400DetectorAcceptsBlankTape()

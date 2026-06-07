@@ -26,6 +26,7 @@ As400FileListDialog::As400FileListDialog(wxWindow* parent, const std::vector<as4
     file_list_ = new wxListCtrl(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL | wxBORDER_SUNKEN);
     file_list_->AppendColumn(wxString::FromUTF8("#"), wxLIST_FORMAT_RIGHT, 54);
     file_list_->AppendColumn(wxString::FromUTF8("File"), wxLIST_FORMAT_LEFT, 180);
+    file_list_->AppendColumn(wxString::FromUTF8("Size"), wxLIST_FORMAT_RIGHT, 92);
     file_list_->AppendColumn(wxString::FromUTF8("Set"), wxLIST_FORMAT_LEFT, 96);
     file_list_->AppendColumn(wxString::FromUTF8("Section"), wxLIST_FORMAT_LEFT, 80);
     file_list_->AppendColumn(wxString::FromUTF8("Sequence"), wxLIST_FORMAT_LEFT, 84);
@@ -59,13 +60,14 @@ void As400FileListDialog::Populate(const std::vector<as400::FileListEntry>& entr
         const auto& entry = entries[index];
         const auto row = file_list_->InsertItem(static_cast<long>(index), wxString::Format("%zu", index + 1));
         file_list_->SetItem(row, 1, Utf8(entry.file_name));
-        file_list_->SetItem(row, 2, Utf8(entry.set));
-        file_list_->SetItem(row, 3, Utf8(entry.section));
-        file_list_->SetItem(row, 4, Utf8(entry.sequence));
-        file_list_->SetItem(row, 5, Utf8(entry.generation));
-        file_list_->SetItem(row, 6, Utf8(entry.created));
-        file_list_->SetItem(row, 7, Utf8(entry.expires));
-        file_list_->SetItem(row, 8, Utf8(entry.system));
+        file_list_->SetItem(row, 2, Utf8(entry.size));
+        file_list_->SetItem(row, 3, Utf8(entry.set));
+        file_list_->SetItem(row, 4, Utf8(entry.section));
+        file_list_->SetItem(row, 5, Utf8(entry.sequence));
+        file_list_->SetItem(row, 6, Utf8(entry.generation));
+        file_list_->SetItem(row, 7, Utf8(entry.created));
+        file_list_->SetItem(row, 8, Utf8(entry.expires));
+        file_list_->SetItem(row, 9, Utf8(entry.system));
         file_list_->SetItemData(row, static_cast<long>(entry.element_index));
     }
 

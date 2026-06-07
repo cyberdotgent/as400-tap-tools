@@ -197,6 +197,7 @@ void testAs400RecordParserIdentifiesLabels()
         {35, "0001"},
         {41, "026158"},
         {47, "99999"},
+        {54, "001024"},
         {60, "IBMOS400"},
     });
     const auto header_info = parser.parseRecord(header1);
@@ -266,6 +267,7 @@ void testAs400FileListCollectsHeaderRecords()
         {35, "0001"},
         {41, "026158"},
         {47, "99999"},
+        {54, "001024"},
         {60, "IBMOS400"},
     }));
     image.appendTapeMark();
@@ -275,8 +277,28 @@ void testAs400FileListCollectsHeaderRecords()
     assert(files.size() == 1);
     assert(files[0].element_index == 1);
     assert(files[0].file_name == "QFILEIML");
-    assert(files[0].created == "026158");
+    assert(files[0].size == "1.0 K");
+    assert(files[0].created == "2026-06-07");
     assert(files[0].expires == "Does not expire");
+}
+
+void testAs400FileListFormatsLargerSizes()
+{
+    as400::RecordInfo record;
+    record.recognized = true;
+    record.type = as400::RecordType::Header1;
+    record.fields = {
+        {"File", "BIGFILE", {}},
+        {"Block count", "1073741824", {}},
+        {"Created", "026158", {{"Date", "2026-06-07", {}}}},
+        {"Expires", "never", {{"Date", "2026-12-31", {}}}},
+    };
+
+    const auto entry = as400::makeAs400FileListEntry(7, record);
+    assert(entry);
+    assert(entry->size == "1.0 G");
+    assert(entry->created == "2026-06-07");
+    assert(entry->expires == "Does not expire");
 }
 
 } // namespace
@@ -293,5 +315,6 @@ int main()
     testAs400DetectorAcceptsBlankTape();
     testAs400DetectorAcceptsVolumeAndHeaderLabels();
     testAs400FileListCollectsHeaderRecords();
+    testAs400FileListFormatsLargerSizes();
     return 0;
 }

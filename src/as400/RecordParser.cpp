@@ -162,6 +162,7 @@ RecordInfo parseHeader1(const std::string& text)
     appendField(fields, "Generation", field(text, 35, 4));
     fields.push_back(makeDecodedDateField("Created", field(text, 41, 6), false));
     fields.push_back(makeDecodedDateField("Expires", field(text, 47, 6), true));
+    appendField(fields, "Block count", field(text, 54, 6));
     appendField(fields, "System", field(text, 60, 13));
     return makeInfo(RecordType::Header1, "HDR1", "Data set header 1", std::move(fields));
 }

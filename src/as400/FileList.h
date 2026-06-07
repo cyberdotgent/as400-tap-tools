@@ -16,6 +16,7 @@ struct FileListEntry {
     std::size_t element_index = 0;
     RecordInfo record;
     std::string file_name;
+    std::string size;
     std::string set;
     std::string section;
     std::string sequence;

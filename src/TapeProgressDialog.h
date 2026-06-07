@@ -29,6 +29,7 @@ private:
     void PumpEvents();
     void OnClose(wxCloseEvent& event);
 
+    static constexpr int GaugeScale = 1000;
     std::string unit_label_;
     wxStaticText* activity_label_ = nullptr;
     wxStaticText* count_label_ = nullptr;

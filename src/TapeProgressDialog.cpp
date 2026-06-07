@@ -24,7 +24,7 @@ TapeProgressDialog::TapeProgressDialog(wxWindow* parent, std::string_view title,
     auto* root = new wxBoxSizer(wxVERTICAL);
     activity_label_ = new wxStaticText(this, wxID_ANY, wxString::FromUTF8("Starting..."));
     count_label_ = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(" "));
-    gauge_ = new wxGauge(this, wxID_ANY, 100, wxDefaultPosition, wxDefaultSize, wxGA_HORIZONTAL | wxGA_SMOOTH);
+    gauge_ = new wxGauge(this, wxID_ANY, GaugeScale, wxDefaultPosition, wxDefaultSize, wxGA_HORIZONTAL | wxGA_SMOOTH);
 
     root->Add(activity_label_, 0, wxALL | wxEXPAND, 12);
     root->Add(gauge_, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
@@ -50,8 +50,9 @@ void TapeProgressDialog::SetProgress(std::string_view activity, std::size_t curr
 {
     total = std::max<std::size_t>(total, 1);
     RefreshText(activity, current, total, false);
-    gauge_->SetRange(static_cast<int>(total));
-    gauge_->SetValue(static_cast<int>(std::min(current, total)));
+    const auto ratio = static_cast<long double>(std::min(current, total)) / static_cast<long double>(total);
+    const auto scaled_value = static_cast<int>(std::clamp<long double>(ratio * GaugeScale, 0.0L, static_cast<long double>(GaugeScale)));
+    gauge_->SetValue(scaled_value);
     PumpEvents();
 }
 

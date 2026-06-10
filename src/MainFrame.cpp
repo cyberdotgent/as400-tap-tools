@@ -426,12 +426,12 @@ void MainFrame::UpdateDecoderPanel()
 void MainFrame::UpdateWindowTitle()
 {
     if (loaded_path_.empty()) {
-        SetTitle(wxString::FromUTF8("SIMH Tape Tools"));
+        SetTitle(wxString::FromUTF8("AS400 Tape Tools"));
         return;
     }
 
     SetTitle(wxString::Format(
-        wxString::FromUTF8("SIMH Tape Tools - %s"),
+        wxString::FromUTF8("AS400 Tape Tools - %s"),
         wxString::FromUTF8(loaded_path_.string().c_str())));
 }
 
@@ -467,7 +467,7 @@ void MainFrame::OnOpen(wxCommandEvent&)
 {
     wxFileDialog dialog(
         this,
-        wxString::FromUTF8("Open SIMH Tape File"),
+        wxString::FromUTF8("Open AS400 Tape File"),
         wxString(),
         wxString(),
         wxString::FromUTF8("Tape files (*.tap;*.TAP)|*.tap;*.TAP|All files (*.*)|*.*"),
@@ -620,8 +620,8 @@ void MainFrame::OnStructureSelected(wxListEvent& event)
 void MainFrame::OnAbout(wxCommandEvent&)
 {
     wxAboutDialogInfo info;
-    info.SetName(wxString::FromUTF8("SIMH Tape Tools"));
+    info.SetName(wxString::FromUTF8("AS400 Tape Tools"));
     info.SetVersion(wxString::FromUTF8("0.1.0"));
-    info.SetDescription(wxString::FromUTF8("SIMH tape file browser and editing shell."));
+    info.SetDescription(wxString::FromUTF8("AS400 tape file browser and editing shell."));
     wxAboutBox(info, this);
 }

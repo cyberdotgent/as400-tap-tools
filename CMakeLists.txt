@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 
-project(simh_tap_tools
+project(as400_tap_tools
     VERSION 0.1.0
     LANGUAGES CXX
 )
@@ -65,6 +65,14 @@ add_library(as400 STATIC
     src/as400/FileList.h
     src/as400/RecordParser.cpp
     src/as400/RecordParser.h
+    src/as400/utils/As400Date.cpp
+    src/as400/utils/As400Date.h
+    src/as400/utils/FixedWidthText.cpp
+    src/as400/utils/FixedWidthText.h
+    src/as400/utils/Format.cpp
+    src/as400/utils/Format.h
+    src/as400/utils/RecordFields.cpp
+    src/as400/utils/RecordFields.h
 )
 
 target_include_directories(as400
@@ -79,7 +87,7 @@ target_link_libraries(as400
 
 add_subdirectory(vendor/wxWidgets)
 
-add_executable(simh-tap-tools WIN32
+add_executable(as400-tap-tools WIN32 MACOSX_BUNDLE
     src/App.cpp
     src/App.h
     src/As400FileListDialog.cpp
@@ -97,10 +105,20 @@ add_executable(simh-tap-tools WIN32
 )
 
 if(WIN32)
-    target_sources(simh-tap-tools PRIVATE src/windows/app.rc)
+    target_sources(as400-tap-tools PRIVATE src/windows/app.rc)
 endif()
 
-target_link_libraries(simh-tap-tools
+if(APPLE)
+    set_target_properties(as400-tap-tools PROPERTIES
+        MACOSX_BUNDLE_BUNDLE_NAME "AS400 Tap Tools"
+        MACOSX_BUNDLE_GUI_IDENTIFIER "gent.cyber.as400taptools"
+        MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        OUTPUT_NAME "as400-tap-tools"
+    )
+endif()
+
+target_link_libraries(as400-tap-tools
     PRIVATE
         as400
         tap
@@ -128,6 +146,6 @@ target_compile_definitions(tap-tests
 add_test(NAME tap-tests COMMAND tap-tests)
 
 if(MINGW)
-    target_link_options(simh-tap-tools PRIVATE -static -static-libgcc -static-libstdc++)
+    target_link_options(as400-tap-tools PRIVATE -static -static-libgcc -static-libstdc++)
     target_link_options(tap-tests PRIVATE -static -static-libgcc -static-libstdc++)
 endif()

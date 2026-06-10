@@ -1,197 +1,63 @@
 #include "RecordParser.h"
 
 #include "Cp37.h"
-
-#include <algorithm>
-#include <cctype>
-#include <iomanip>
-#include <sstream>
-#include <utility>
+#include "utils/As400Date.h"
+#include "utils/FixedWidthText.h"
+#include "utils/RecordFields.h"
 
 namespace as400 {
 namespace {
 
-std::string trim(std::string value)
-{
-    while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back())) != 0) {
-        value.pop_back();
-    }
-    const auto first = std::find_if(value.begin(), value.end(), [](char ch) {
-        return std::isspace(static_cast<unsigned char>(ch)) == 0;
-    });
-    value.erase(value.begin(), first);
-    return value;
-}
-
-std::string field(const std::string& text, std::size_t offset, std::size_t length)
-{
-    if (offset >= text.size()) {
-        return {};
-    }
-    return trim(text.substr(offset, std::min(length, text.size() - offset)));
-}
-
-void appendField(std::vector<RecordField>& fields, const char* label, const std::string& value)
-{
-    if (value.empty()) {
-        return;
-    }
-    fields.push_back(RecordField{label, value});
-}
-
-bool isDigits(const std::string& value)
-{
-    return std::all_of(value.begin(), value.end(), [](char ch) {
-        return std::isdigit(static_cast<unsigned char>(ch)) != 0;
-    });
-}
-
-bool isLeapYear(int year)
-{
-    return (year % 4 == 0 && year % 100 != 0) || year % 400 == 0;
-}
-
-std::string decimalString(int value)
-{
-    return std::to_string(value);
-}
-
-std::string isoDateString(int year, int month, int day)
-{
-    std::ostringstream output;
-    output << std::setfill('0')
-           << std::setw(4) << year
-           << '-'
-           << std::setw(2) << month
-           << '-'
-           << std::setw(2) << day;
-    return output.str();
-}
-
-RecordField makeDecodedDateField(const char* label, const std::string& raw_value, bool expiration_date)
-{
-    RecordField result{label, raw_value, {}};
-    if (raw_value.empty()) {
-        return result;
-    }
-
-    if (expiration_date && raw_value == "99999") {
-        result.value = "Does not expire";
-        result.children.push_back(RecordField{"Raw", raw_value, {}});
-        return result;
-    }
-
-    if (raw_value.size() != 6 || !isDigits(raw_value)) {
-        return result;
-    }
-
-    const auto century = raw_value[0] - '0';
-    const auto year_in_century = std::stoi(raw_value.substr(1, 2));
-    const auto day_of_year = std::stoi(raw_value.substr(3, 3));
-    const auto year = 2000 + (century * 100) + year_in_century;
-    const auto max_day = isLeapYear(year) ? 366 : 365;
-    if (day_of_year < 1 || day_of_year > max_day) {
-        return result;
-    }
-
-    static constexpr int month_lengths_common[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-    int remaining = day_of_year;
-    int month = 1;
-    for (const auto month_length_common : month_lengths_common) {
-        auto month_length = month_length_common;
-        if (month == 2 && isLeapYear(year)) {
-            month_length = 29;
-        }
-        if (remaining <= month_length) {
-            break;
-        }
-        remaining -= month_length;
-        ++month;
-    }
-
-    result.children.push_back(RecordField{"Raw", raw_value, {}});
-    result.children.push_back(RecordField{"Year", decimalString(year), {}});
-    result.children.push_back(RecordField{"Day of year", decimalString(day_of_year), {}});
-    result.children.push_back(RecordField{"Month", decimalString(month), {}});
-    result.children.push_back(RecordField{"Day", decimalString(remaining), {}});
-    result.children.push_back(RecordField{"Date", isoDateString(year, month, remaining), {}});
-    return result;
-}
-
-std::string formatDetails(const std::vector<RecordField>& fields)
-{
-    std::ostringstream output;
-    for (const auto& field : fields) {
-        if (output.tellp() > 0) {
-            output << " | ";
-        }
-        output << field.name << ": " << field.value;
-    }
-    return output.str();
-}
-
-RecordInfo makeInfo(RecordType type, std::string code, std::string name, std::vector<RecordField> fields)
-{
-    RecordInfo info;
-    info.type = type;
-    info.code = std::move(code);
-    info.name = std::move(name);
-    info.fields = std::move(fields);
-    info.details = formatDetails(info.fields);
-    info.recognized = true;
-    return info;
-}
-
 RecordInfo parseVolumeLabel(const std::string& text)
 {
     std::vector<RecordField> fields;
-    appendField(fields, "Record type", "VOL1");
-    appendField(fields, "Volume", field(text, 4, 6));
-    appendField(fields, "Owner", field(text, 37, 14));
-    return makeInfo(RecordType::VolumeLabel, "VOL1", "Volume label", std::move(fields));
+    utils::appendField(fields, "Record type", "VOL1");
+    utils::appendField(fields, "Volume", utils::field(text, 4, 6));
+    utils::appendField(fields, "Owner", utils::field(text, 37, 14));
+    return utils::makeInfo(RecordType::VolumeLabel, "VOL1", "Volume label", std::move(fields));
 }
 
 RecordInfo parseHeader1(const std::string& text)
 {
     std::vector<RecordField> fields;
-    appendField(fields, "Record type", "HDR1");
-    appendField(fields, "File", field(text, 4, 17));
-    appendField(fields, "Set", field(text, 21, 6));
-    appendField(fields, "Section", field(text, 27, 4));
-    appendField(fields, "Sequence", field(text, 31, 4));
-    appendField(fields, "Generation", field(text, 35, 4));
-    fields.push_back(makeDecodedDateField("Created", field(text, 41, 6), false));
-    fields.push_back(makeDecodedDateField("Expires", field(text, 47, 6), true));
-    appendField(fields, "Block count", field(text, 54, 6));
-    appendField(fields, "System", field(text, 60, 13));
-    return makeInfo(RecordType::Header1, "HDR1", "Data set header 1", std::move(fields));
+    utils::appendField(fields, "Record type", "HDR1");
+    utils::appendField(fields, "File", utils::field(text, 4, 17));
+    utils::appendField(fields, "Set", utils::field(text, 21, 6));
+    utils::appendField(fields, "Section", utils::field(text, 27, 4));
+    utils::appendField(fields, "Sequence", utils::field(text, 31, 4));
+    utils::appendField(fields, "Generation", utils::field(text, 35, 4));
+    fields.push_back(utils::As400Date::makeDecodedDateField("Created", utils::field(text, 41, 6), false));
+    fields.push_back(utils::As400Date::makeDecodedDateField("Expires", utils::field(text, 47, 6), true));
+    utils::appendField(fields, "Block count", utils::field(text, 54, 6));
+    utils::appendField(fields, "System", utils::field(text, 60, 13));
+    return utils::makeInfo(RecordType::Header1, "HDR1", "Data set header 1", std::move(fields));
 }
 
 RecordInfo parseHeader2(const std::string& text)
 {
     std::vector<RecordField> fields;
-    appendField(fields, "Record type", "HDR2");
-    appendField(fields, "Format", field(text, 4, 1));
-    appendField(fields, "Block length", field(text, 5, 5));
-    appendField(fields, "Record length", field(text, 10, 5));
-    appendField(fields, "Density", field(text, 15, 1));
-    appendField(fields, "Job", field(text, 38, 17));
-    return makeInfo(RecordType::Header2, "HDR2", "Data set header 2", std::move(fields));
+    utils::appendField(fields, "Record type", "HDR2");
+    utils::appendField(fields, "Format", utils::field(text, 4, 1));
+    utils::appendField(fields, "Block length", utils::field(text, 5, 5));
+    utils::appendField(fields, "Record length", utils::field(text, 10, 5));
+    utils::appendField(fields, "Density", utils::field(text, 15, 1));
+    utils::appendField(fields, "Job", utils::field(text, 38, 17));
+    return utils::makeInfo(RecordType::Header2, "HDR2", "Data set header 2", std::move(fields));
 }
 
 RecordInfo parseSimpleLabel(const std::string& code)
 {
     if (code == "EOF1") {
-        return makeInfo(RecordType::EndOfFile1, code, "End-of-file label 1", {RecordField{"Record type", code}});
+        return utils::makeInfo(RecordType::EndOfFile1, code, "End-of-file label 1", {RecordField{"Record type", code}});
     }
     if (code == "EOF2") {
-        return makeInfo(RecordType::EndOfFile2, code, "End-of-file label 2", {RecordField{"Record type", code}});
+        return utils::makeInfo(RecordType::EndOfFile2, code, "End-of-file label 2", {RecordField{"Record type", code}});
     }
     if (code == "UHL1") {
-        return makeInfo(RecordType::UserHeader1, code, "User header label 1", {RecordField{"Record type", code}});
+        return utils::makeInfo(RecordType::UserHeader1, code, "User header label 1", {RecordField{"Record type", code}});
     }
     if (code == "UHL2") {
-        return makeInfo(RecordType::UserHeader2, code, "User header label 2", {RecordField{"Record type", code}});
+        return utils::makeInfo(RecordType::UserHeader2, code, "User header label 2", {RecordField{"Record type", code}});
     }
     return {};
 }

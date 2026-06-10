@@ -29,6 +29,32 @@
         "CMAKE_C_COMPILER_LAUNCHER": "ccache",
         "CMAKE_CXX_COMPILER_LAUNCHER": "ccache"
       }
+    },
+    {
+      "name": "macos-universal",
+      "displayName": "macOS Universal",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-universal",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_OSX_ARCHITECTURES": "arm64;x86_64",
+        "CMAKE_POSITION_INDEPENDENT_CODE": "ON"
+      }
+    },
+    {
+      "name": "macos-arm64",
+      "displayName": "macOS arm64",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/macos-arm64",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_CXX_COMPILER_LAUNCHER": "ccache",
+        "CMAKE_OSX_ARCHITECTURES": "arm64",
+        "CMAKE_POSITION_INDEPENDENT_CODE": "ON"
+      }
     }
   ],
   "buildPresets": [
@@ -36,7 +62,7 @@
       "name": "linux-amd64",
       "configurePreset": "linux-amd64",
       "targets": [
-        "simh-tap-tools",
+        "as400-tap-tools",
         "tap-tests"
       ]
     },
@@ -44,7 +70,23 @@
       "name": "windows-amd64-mingw",
       "configurePreset": "windows-amd64-mingw",
       "targets": [
-        "simh-tap-tools",
+        "as400-tap-tools",
+        "tap-tests"
+      ]
+    },
+    {
+      "name": "macos-universal",
+      "configurePreset": "macos-universal",
+      "targets": [
+        "as400-tap-tools",
+        "tap-tests"
+      ]
+    },
+    {
+      "name": "macos-arm64",
+      "configurePreset": "macos-arm64",
+      "targets": [
+        "as400-tap-tools",
         "tap-tests"
       ]
     }
@@ -53,6 +95,20 @@
     {
       "name": "linux-amd64",
       "configurePreset": "linux-amd64",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-universal",
+      "configurePreset": "macos-universal",
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "macos-arm64",
+      "configurePreset": "macos-arm64",
       "output": {
         "outputOnFailure": true
       }

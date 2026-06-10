@@ -26,7 +26,7 @@ bool TapeToolsApp::OnInit()
         return false;
     }
 
-    auto* frame = new MainFrame(wxString::FromUTF8("SIMH Tape Tools"));
+    auto* frame = new MainFrame(wxString::FromUTF8("AS400 Tape Tools"));
     frame->Show(true);
     if (startup_tape_path_) {
         frame->LoadTapeFile(*startup_tape_path_);

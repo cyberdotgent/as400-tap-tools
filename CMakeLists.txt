@@ -87,6 +87,10 @@ target_link_libraries(as400
 
 add_subdirectory(vendor/wxWidgets)
 
+set(APP_ICON_ICO "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/as400-tap-tools.ico")
+set(APP_ICON_ICNS "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/as400-tap-tools.icns")
+set(APP_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/as400-tap-tools.png")
+
 add_executable(as400-tap-tools WIN32 MACOSX_BUNDLE
     src/App.cpp
     src/App.h
@@ -102,10 +106,11 @@ add_executable(as400-tap-tools WIN32 MACOSX_BUNDLE
     src/TapeProgressDialog.h
     src/TapeElementView.cpp
     src/TapeElementView.h
+    ${APP_ICON_PNG}
 )
 
 if(WIN32)
-    target_sources(as400-tap-tools PRIVATE src/windows/app.rc)
+    target_sources(as400-tap-tools PRIVATE src/windows/app.rc ${APP_ICON_ICO})
 endif()
 
 if(APPLE)
@@ -114,7 +119,16 @@ if(APPLE)
         MACOSX_BUNDLE_GUI_IDENTIFIER "gent.cyber.as400taptools"
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+        MACOSX_BUNDLE_ICON_FILE "as400-tap-tools.icns"
+        RESOURCE "${APP_ICON_ICNS};${APP_ICON_PNG}"
         OUTPUT_NAME "as400-tap-tools"
+    )
+else()
+    add_custom_command(TARGET as400-tap-tools POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:as400-tap-tools>/assets"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${APP_ICON_PNG}"
+            "$<TARGET_FILE_DIR:as400-tap-tools>/assets/as400-tap-tools.png"
     )
 endif()
 

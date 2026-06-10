@@ -16,6 +16,7 @@
 - Use the ccache remote storage setting:
   `http://buildcache.cyber.gent/|layout=bazel`
 - Prefer out-of-source builds under `build/`.
+- When running from an IDE such as CLion or VS Code, do not run compile or test commands manually; let the IDE handle builds and tests.
 
 ## Git
 

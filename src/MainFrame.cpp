@@ -13,6 +13,8 @@
 #include <wx/aboutdlg.h>
 #include <wx/event.h>
 #include <wx/filedlg.h>
+#include <wx/filename.h>
+#include <wx/image.h>
 #include <wx/listctrl.h>
 #include <wx/menu.h>
 #include <wx/msgdlg.h>
@@ -20,8 +22,10 @@
 #include <wx/sizer.h>
 #include <wx/font.h>
 #include <wx/stattext.h>
+#include <wx/stdpaths.h>
 #include <wx/statusbr.h>
 #include <wx/string.h>
+#include <wx/toolbar.h>
 
 namespace {
 
@@ -34,6 +38,58 @@ constexpr int RawTapeExplorerMenuId = wxID_HIGHEST + 5;
 wxString Utf8(std::string_view text)
 {
     return wxString::FromUTF8(text.data(), text.size());
+}
+
+wxString AssetPath(std::string_view file_name)
+{
+    const auto& standard_paths = wxStandardPaths::Get();
+#if defined(__APPLE__)
+    return wxFileName(standard_paths.GetResourcesDir(), wxString::FromUTF8(file_name.data(), file_name.size())).GetFullPath();
+#else
+    wxFileName executable(standard_paths.GetExecutablePath());
+    auto relative_path = std::string("assets/");
+    relative_path.append(file_name);
+    return wxFileName(executable.GetPath(), wxString::FromUTF8(relative_path.c_str())).GetFullPath();
+#endif
+}
+
+wxBitmap LoadToolbarBitmap(std::string_view file_name)
+{
+#if defined(_WIN32)
+    const auto resource_name =
+        file_name == "toolbar-open.png"
+            ? wxString::FromUTF8("TOOLBAR_OPEN")
+            : wxString::FromUTF8("TOOLBAR_RAW_EXPLORER");
+    wxBitmap bitmap(resource_name, wxBITMAP_TYPE_PNG_RESOURCE);
+    if (!bitmap.IsOk()) {
+        return {};
+    }
+
+    if (bitmap.GetWidth() == 24 && bitmap.GetHeight() == 24) {
+        return bitmap;
+    }
+
+    auto image = bitmap.ConvertToImage();
+    if (!image.IsOk()) {
+        return bitmap;
+    }
+
+    image.Rescale(24, 24, wxIMAGE_QUALITY_HIGH);
+    return wxBitmap(image);
+#else
+    const auto path = AssetPath(file_name);
+    if (!wxFileName::FileExists(path)) {
+        return {};
+    }
+
+    wxImage image(path, wxBITMAP_TYPE_PNG);
+    if (!image.IsOk()) {
+        return {};
+    }
+
+    image.Rescale(24, 24, wxIMAGE_QUALITY_HIGH);
+    return wxBitmap(image);
+#endif
 }
 
 template <typename T>
@@ -65,10 +121,12 @@ MainFrame::MainFrame(const wxString& title)
     : wxFrame(nullptr, wxID_ANY, title, wxDefaultPosition, wxSize(1100, 720))
 {
     BuildMenuBar();
+    BuildToolBar();
     BuildContent();
     CreateStatusBar();
     UpdateWindowTitle();
     UpdateStatusText();
+    UpdateToolState();
 
     Bind(wxEVT_MENU, &MainFrame::OnOpen, this, OpenMenuId);
     Bind(wxEVT_MENU, &MainFrame::OnCloseFile, this, CloseFileMenuId);
@@ -97,6 +155,23 @@ void MainFrame::BuildMenuBar()
     menu_bar->Append(view_menu, wxString::FromUTF8("&View"));
     menu_bar->Append(help_menu, wxString::FromUTF8("&Help"));
     SetMenuBar(menu_bar);
+}
+
+void MainFrame::BuildToolBar()
+{
+    tool_bar_ = CreateToolBar(wxTB_FLAT | wxTB_HORIZONTAL);
+    if (!tool_bar_) {
+        return;
+    }
+
+    tool_bar_->SetToolBitmapSize(wxSize(24, 24));
+    tool_bar_->AddTool(OpenMenuId, wxString::FromUTF8("Open"), LoadToolbarBitmap("toolbar-open.png"), wxString::FromUTF8("Open tape"));
+    tool_bar_->AddTool(
+        RawTapeExplorerMenuId,
+        wxString::FromUTF8("Raw Tape Explorer"),
+        LoadToolbarBitmap("toolbar-raw-explorer.png"),
+        wxString::FromUTF8("Open raw tape explorer"));
+    tool_bar_->Realize();
 }
 
 void MainFrame::BuildContent()
@@ -189,6 +264,7 @@ void MainFrame::LoadTapeFile(const std::filesystem::path& path)
     UpdateWindowTitle();
     ShowFileListLoadMessage();
     UpdateStatusText();
+    UpdateToolState();
 }
 
 void MainFrame::ClearTape()
@@ -198,6 +274,7 @@ void MainFrame::ClearTape()
     PopulateFileListView();
     UpdateWindowTitle();
     UpdateStatusText();
+    UpdateToolState();
 }
 
 void MainFrame::PopulateFileListView()
@@ -252,6 +329,17 @@ void MainFrame::UpdateFileListHeader()
 
     if (file_list_panel_) {
         file_list_panel_->Layout();
+    }
+}
+
+void MainFrame::UpdateToolState()
+{
+    const auto has_tape = tape_analysis_.has_value();
+    if (raw_explorer_item_) {
+        raw_explorer_item_->Enable(has_tape);
+    }
+    if (tool_bar_) {
+        tool_bar_->EnableTool(RawTapeExplorerMenuId, has_tape);
     }
 }
 

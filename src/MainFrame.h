@@ -14,6 +14,7 @@ class wxListCtrl;
 class wxPanel;
 class wxStaticText;
 class wxString;
+class wxToolBar;
 class wxWindow;
 
 class MainFrame final : public wxFrame
@@ -24,12 +25,14 @@ public:
 
 private:
     void BuildMenuBar();
+    void BuildToolBar();
     void BuildContent();
     void BuildFileListView(wxWindow* parent);
 
     void ClearTape();
     void PopulateFileListView();
     void UpdateFileListHeader();
+    void UpdateToolState();
     void ShowFileListLoadMessage();
     void UpdateWindowTitle();
     void UpdateStatusText();
@@ -46,6 +49,7 @@ private:
     wxStaticText* owner_label_caption_ = nullptr;
     wxStaticText* owner_label_value_ = nullptr;
     wxListCtrl* file_list_view_ = nullptr;
+    wxToolBar* tool_bar_ = nullptr;
     wxMenuItem* raw_explorer_item_ = nullptr;
 
     as400::RecordParser as400_parser_;

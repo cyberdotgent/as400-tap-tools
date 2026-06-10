@@ -90,6 +90,8 @@ add_subdirectory(vendor/wxWidgets)
 set(APP_ICON_ICO "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/as400-tap-tools.ico")
 set(APP_ICON_ICNS "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/as400-tap-tools.icns")
 set(APP_ICON_PNG "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/as400-tap-tools.png")
+set(TOOLBAR_OPEN_PNG "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/toolbar-open.png")
+set(TOOLBAR_RAW_EXPLORER_PNG "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/toolbar-raw-explorer.png")
 
 add_executable(as400-tap-tools WIN32 MACOSX_BUNDLE
     src/App.cpp
@@ -111,6 +113,8 @@ add_executable(as400-tap-tools WIN32 MACOSX_BUNDLE
     src/TapeAnalysis.cpp
     src/TapeAnalysis.h
     ${APP_ICON_PNG}
+    ${TOOLBAR_OPEN_PNG}
+    ${TOOLBAR_RAW_EXPLORER_PNG}
 )
 
 if(WIN32)
@@ -124,15 +128,21 @@ if(APPLE)
         MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
         MACOSX_BUNDLE_ICON_FILE "as400-tap-tools.icns"
-        RESOURCE "${APP_ICON_ICNS};${APP_ICON_PNG}"
+        RESOURCE "${APP_ICON_ICNS};${APP_ICON_PNG};${TOOLBAR_OPEN_PNG};${TOOLBAR_RAW_EXPLORER_PNG}"
         OUTPUT_NAME "as400-tap-tools"
     )
-else()
+elseif(NOT WIN32)
     add_custom_command(TARGET as400-tap-tools POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:as400-tap-tools>/assets"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${APP_ICON_PNG}"
             "$<TARGET_FILE_DIR:as400-tap-tools>/assets/as400-tap-tools.png"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${TOOLBAR_OPEN_PNG}"
+            "$<TARGET_FILE_DIR:as400-tap-tools>/assets/toolbar-open.png"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${TOOLBAR_RAW_EXPLORER_PNG}"
+            "$<TARGET_FILE_DIR:as400-tap-tools>/assets/toolbar-raw-explorer.png"
     )
 endif()
 

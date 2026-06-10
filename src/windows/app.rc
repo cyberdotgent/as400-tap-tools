@@ -1,3 +1,5 @@
 #include <wx/msw/wx.rc>
 
 1 ICON "../assets/as400-tap-tools.ico"
+TOOLBAR_OPEN RCDATA "../assets/toolbar-open.png"
+TOOLBAR_RAW_EXPLORER RCDATA "../assets/toolbar-raw-explorer.png"

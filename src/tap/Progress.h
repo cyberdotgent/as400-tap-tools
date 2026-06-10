@@ -1,5 +1,7 @@
 #pragma once
 
+#include "TapeElement.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -12,5 +14,6 @@ struct ProgressInfo {
 };
 
 using ProgressCallback = std::function<void(const ProgressInfo&)>;
+using ElementCallback = std::function<void(const TapeElement&, std::size_t index)>;
 
 } // namespace tap

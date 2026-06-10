@@ -21,10 +21,13 @@ Reader::Reader(ReaderOptions options)
 {
 }
 
-Result<TapeImage> Reader::read(std::istream& input, const ProgressCallback& progress) const
+Result<TapeImage> Reader::read(
+    std::istream& input,
+    const ProgressCallback& progress,
+    const ElementCallback& on_element) const
 {
     Scanner scanner;
-    auto scan_result = scanner.scan(input, 0, progress);
+    auto scan_result = scanner.scan(input, 0, progress, on_element);
     if (!scan_result.diagnostics.empty()) {
         const auto& diagnostic = scan_result.diagnostics.front();
         if (!options_.allow_zuluscsi_trailing_partial_record || !isZuluScsiTrailingPartialRecord(diagnostic)) {
@@ -35,12 +38,15 @@ Result<TapeImage> Reader::read(std::istream& input, const ProgressCallback& prog
     return Result<TapeImage>::ok(std::move(scan_result.image));
 }
 
-Result<TapeImage> Reader::read(const std::filesystem::path& path, const ProgressCallback& progress) const
+Result<TapeImage> Reader::read(
+    const std::filesystem::path& path,
+    const ProgressCallback& progress,
+    const ElementCallback& on_element) const
 {
     Scanner scanner;
     std::error_code error_code;
     const auto total_bytes = std::filesystem::file_size(path, error_code);
-    const auto scan_result = scanner.scan(path, error_code ? 0 : total_bytes, progress);
+    const auto scan_result = scanner.scan(path, error_code ? 0 : total_bytes, progress, on_element);
     if (!scan_result.diagnostics.empty()) {
         const auto& diagnostic = scan_result.diagnostics.front();
         if (!options_.allow_zuluscsi_trailing_partial_record || !isZuluScsiTrailingPartialRecord(diagnostic)) {

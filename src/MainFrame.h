@@ -1,12 +1,10 @@
 #pragma once
 
-#include "as400/FileList.h"
+#include "TapeAnalysis.h"
 #include "as400/RecordParser.h"
-#include "tap/TapeImage.h"
 
 #include <filesystem>
 #include <optional>
-#include <vector>
 
 #include <wx/frame.h>
 
@@ -31,7 +29,6 @@ private:
 
     void ClearTape();
     void PopulateFileListView();
-    void CollectFileListData();
     void UpdateFileListHeader();
     void ShowFileListLoadMessage();
     void UpdateWindowTitle();
@@ -52,8 +49,6 @@ private:
     wxMenuItem* raw_explorer_item_ = nullptr;
 
     as400::RecordParser as400_parser_;
-    tap::TapeImage tape_image_;
     std::filesystem::path loaded_path_;
-    std::optional<as400::RecordInfo> volume_label_;
-    std::vector<as400::FileListEntry> file_list_entries_;
+    std::optional<TapeAnalysis> tape_analysis_;
 };

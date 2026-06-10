@@ -1,11 +1,12 @@
 #include "MainFrame.h"
 
 #include "RawTapeExplorerDialog.h"
+#include "TapeAnalysis.h"
 #include "TapeProgressDialog.h"
-#include "as400/FileList.h"
 #include "as400/utils/RecordFields.h"
 #include "tap/Reader.h"
 
+#include <algorithm>
 #include <string_view>
 #include <utility>
 
@@ -147,20 +148,26 @@ void MainFrame::BuildFileListView(wxWindow* parent)
 void MainFrame::LoadTapeFile(const std::filesystem::path& path)
 {
     tap::Reader reader;
+    TapeAnalysisBuilder analysis_builder(as400_parser_);
     const auto read_result = [&]() {
         TapeProgressDialog progress(this, "Loading tape file", "bytes");
         std::uint64_t last_progress_bytes = 0;
         std::uint64_t step = 1;
         std::uint64_t seen_total = 0;
-        return reader.read(path, [&progress, &last_progress_bytes, &step, &seen_total](const tap::ProgressInfo& info) {
-            if (seen_total != info.bytes_total) {
-                seen_total = info.bytes_total;
-                step = progressStep<std::uint64_t>(std::max<std::uint64_t>(1, info.bytes_total));
-            }
-            if (shouldUpdateProgress(info.bytes_read, info.bytes_total, last_progress_bytes, step)) {
-                progress.SetProgress("Reading tape file...", info.bytes_read, info.bytes_total);
-            }
-        });
+        return reader.read(
+            path,
+            [&progress, &last_progress_bytes, &step, &seen_total](const tap::ProgressInfo& info) {
+                if (seen_total != info.bytes_total) {
+                    seen_total = info.bytes_total;
+                    step = progressStep<std::uint64_t>(std::max<std::uint64_t>(1, info.bytes_total));
+                }
+                if (shouldUpdateProgress(info.bytes_read, info.bytes_total, last_progress_bytes, step)) {
+                    progress.SetProgress("Reading and analyzing tape file...", info.bytes_read, info.bytes_total);
+                }
+            },
+            [&analysis_builder](const tap::TapeElement& element, std::size_t index) {
+                analysis_builder.observeElement(index, element);
+            });
     }();
     if (!read_result) {
         const auto& error = read_result.error();
@@ -175,11 +182,8 @@ void MainFrame::LoadTapeFile(const std::filesystem::path& path)
         return;
     }
 
-    tape_image_ = read_result.value();
     loaded_path_ = path;
-    volume_label_.reset();
-    file_list_entries_.clear();
-    CollectFileListData();
+    tape_analysis_ = analysis_builder.finish();
     PopulateFileListView();
 
     UpdateWindowTitle();
@@ -189,10 +193,8 @@ void MainFrame::LoadTapeFile(const std::filesystem::path& path)
 
 void MainFrame::ClearTape()
 {
-    tape_image_ = tap::TapeImage();
     loaded_path_.clear();
-    volume_label_.reset();
-    file_list_entries_.clear();
+    tape_analysis_.reset();
     PopulateFileListView();
     UpdateWindowTitle();
     UpdateStatusText();
@@ -205,8 +207,13 @@ void MainFrame::PopulateFileListView()
     }
 
     file_list_view_->DeleteAllItems();
-    for (std::size_t index = 0; index < file_list_entries_.size(); ++index) {
-        const auto& entry = file_list_entries_[index];
+    if (!tape_analysis_) {
+        UpdateFileListHeader();
+        return;
+    }
+
+    for (std::size_t index = 0; index < tape_analysis_->file_list_entries.size(); ++index) {
+        const auto& entry = tape_analysis_->file_list_entries[index];
         const auto row = file_list_view_->InsertItem(static_cast<long>(index), wxString::Format("%zu", index + 1));
         file_list_view_->SetItem(row, 1, Utf8(entry.file_name));
         file_list_view_->SetItem(row, 2, Utf8(entry.size));
@@ -226,51 +233,20 @@ void MainFrame::PopulateFileListView()
     UpdateFileListHeader();
 }
 
-void MainFrame::CollectFileListData()
-{
-    file_list_entries_.clear();
-
-    const auto& elements = tape_image_.elements();
-    if (elements.empty()) {
-        return;
-    }
-
-    TapeProgressDialog progress(this, "Rendering tape structure", "records");
-    as400::FileListCollector file_list_collector;
-    std::size_t last_progress_records = 0;
-    const auto step = progressStep(elements.size());
-    for (std::size_t index = 0; index < elements.size(); ++index) {
-        const auto current = index + 1;
-        if (shouldUpdateProgress(current, elements.size(), last_progress_records, step)) {
-            progress.SetProgress("Rendering tape structure...", current, elements.size());
-        }
-
-        if (elements[index].isRecord()) {
-            const auto record = as400_parser_.parseRecord(elements[index].record().data);
-            if (!volume_label_ && record.recognized && record.type == as400::RecordType::VolumeLabel) {
-                volume_label_ = record;
-            }
-            file_list_collector.observe(index, record, elements[index].record().data.size());
-        }
-    }
-
-    file_list_entries_ = file_list_collector.takeEntries();
-}
-
 void MainFrame::UpdateFileListHeader()
 {
     if (!volume_label_value_ || !owner_label_value_) {
         return;
     }
 
-    if (!volume_label_) {
+    if (!tape_analysis_ || !tape_analysis_->volume_label) {
         volume_label_value_->SetLabel(wxString::FromUTF8("-"));
         owner_label_value_->SetLabel(wxString::FromUTF8("-"));
         return;
     }
 
-    const auto volume = as400::utils::fieldValue(*volume_label_, "Volume");
-    const auto owner = as400::utils::fieldValue(*volume_label_, "Owner");
+    const auto volume = as400::utils::fieldValue(*tape_analysis_->volume_label, "Volume");
+    const auto owner = as400::utils::fieldValue(*tape_analysis_->volume_label, "Owner");
     volume_label_value_->SetLabel(wxString::FromUTF8(volume.empty() ? "-" : volume.c_str()));
     owner_label_value_->SetLabel(wxString::FromUTF8(owner.empty() ? "-" : owner.c_str()));
 
@@ -297,7 +273,7 @@ void MainFrame::ShowFileListLoadMessage()
         return;
     }
 
-    if (!as400_parser_.isAs400Tape(tape_image_)) {
+    if (!tape_analysis_ || !tape_analysis_->is_as400_tape) {
         wxMessageBox(
             wxString::FromUTF8("The loaded tape is not recognized as an IBM AS/400 tape.\n\nUse View > Raw Tape Explorer to inspect the raw structure."),
             wxString::FromUTF8("Tape Not Recognized"),
@@ -306,7 +282,7 @@ void MainFrame::ShowFileListLoadMessage()
         return;
     }
 
-    if (file_list_entries_.empty()) {
+    if (tape_analysis_->file_list_entries.empty()) {
         wxMessageBox(
             wxString::FromUTF8("The loaded IBM AS/400 tape contains no files."),
             wxString::FromUTF8("No Files"),
@@ -322,19 +298,19 @@ void MainFrame::UpdateStatusText()
         return;
     }
 
-    if (!as400_parser_.isAs400Tape(tape_image_)) {
+    if (!tape_analysis_ || !tape_analysis_->is_as400_tape) {
         SetStatusText(wxString::FromUTF8("Not recognized as an IBM AS/400 tape | Switch to View > Raw Tape Explorer for structural inspection"));
         return;
     }
 
-    if (file_list_entries_.empty()) {
+    if (tape_analysis_->file_list_entries.empty()) {
         SetStatusText(wxString::FromUTF8("IBM AS/400 tape | No files"));
         return;
     }
 
     SetStatusText(wxString::Format(
         wxString::FromUTF8("IBM AS/400 tape | %zu files"),
-        file_list_entries_.size()));
+        tape_analysis_->file_list_entries.size()));
 }
 
 void MainFrame::OnOpen(wxCommandEvent&)
@@ -361,7 +337,7 @@ void MainFrame::OnCloseFile(wxCommandEvent&)
 
 void MainFrame::OnRawExplorerView(wxCommandEvent&)
 {
-    if (tape_image_.empty()) {
+    if (!tape_analysis_) {
         wxMessageBox(
             wxString::FromUTF8("Load a tape before opening the raw tape explorer."),
             wxString::FromUTF8("Raw Tape Explorer"),
@@ -372,8 +348,7 @@ void MainFrame::OnRawExplorerView(wxCommandEvent&)
 
     RawTapeExplorerDialog dialog(
         this,
-        tape_image_,
-        as400_parser_,
+        *tape_analysis_,
         0);
     dialog.ShowModal();
 }
@@ -387,8 +362,7 @@ void MainFrame::OnFileListItemActivated(wxListEvent& event)
 
     RawTapeExplorerDialog dialog(
         this,
-        tape_image_,
-        as400_parser_,
+        *tape_analysis_,
         static_cast<std::size_t>(file_list_view_->GetItemData(item)));
     dialog.ShowModal();
 }

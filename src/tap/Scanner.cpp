@@ -130,7 +130,11 @@ ScanStep readNextElement(std::istream& input, std::uint64_t& offset, TapeImage* 
 
 } // namespace
 
-ScanResult Scanner::scan(std::istream& input, std::uint64_t total_bytes, const ProgressCallback& progress) const
+ScanResult Scanner::scan(
+    std::istream& input,
+    std::uint64_t total_bytes,
+    const ProgressCallback& progress,
+    const ElementCallback& on_element) const
 {
     ScanResult result;
     std::uint64_t offset = 0;
@@ -140,9 +144,14 @@ ScanResult Scanner::scan(std::istream& input, std::uint64_t total_bytes, const P
             break;
         }
 
+        const auto element_count_before = result.image.elementCount();
         const auto step = readNextElement(input, offset, &result.image, result.diagnostics);
         if (step == ScanStep::Error) {
             break;
+        }
+
+        if (on_element && result.image.elementCount() > element_count_before) {
+            on_element(result.image.elements().back(), element_count_before);
         }
 
         if (progress) {
@@ -156,7 +165,11 @@ ScanResult Scanner::scan(std::istream& input, std::uint64_t total_bytes, const P
     return result;
 }
 
-ScanResult Scanner::scan(const std::filesystem::path& path, std::uint64_t total_bytes, const ProgressCallback& progress) const
+ScanResult Scanner::scan(
+    const std::filesystem::path& path,
+    std::uint64_t total_bytes,
+    const ProgressCallback& progress,
+    const ElementCallback& on_element) const
 {
     std::ifstream input(path, std::ios::binary);
     if (!input) {
@@ -169,7 +182,7 @@ ScanResult Scanner::scan(const std::filesystem::path& path, std::uint64_t total_
         return result;
     }
 
-    return scan(input, total_bytes, progress);
+    return scan(input, total_bytes, progress, on_element);
 }
 
 } // namespace tap

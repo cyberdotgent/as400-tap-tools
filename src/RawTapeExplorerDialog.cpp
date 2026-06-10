@@ -1,9 +1,5 @@
 #include "RawTapeExplorerDialog.h"
 
-#include "TapeElementView.h"
-#include "TapeProgressDialog.h"
-
-#include <algorithm>
 #include <string_view>
 #include <utility>
 
@@ -36,35 +32,11 @@ DecoderProperty ToDecoderProperty(const as400::RecordField& field)
     return property;
 }
 
-template <typename T>
-T progressStep(T total)
-{
-    return std::max<T>(1, total / 100);
-}
-
-template <typename T>
-bool shouldUpdateProgress(T current, T total, T& last_bucket, T step)
-{
-    if (total == 0) {
-        return true;
-    }
-
-    const auto bucket = current / step;
-    const auto last = last_bucket / step;
-    if (bucket != last || current == total) {
-        last_bucket = current;
-        return true;
-    }
-
-    return false;
-}
-
 } // namespace
 
 RawTapeExplorerDialog::RawTapeExplorerDialog(
     wxWindow* parent,
-    tap::TapeImage tape_image,
-    as400::RecordParser parser,
+    const TapeAnalysis& tape_analysis,
     std::size_t initial_element_index)
     : wxDialog(parent,
           wxID_ANY,
@@ -72,14 +44,13 @@ RawTapeExplorerDialog::RawTapeExplorerDialog(
           wxDefaultPosition,
           wxSize(1100, 720),
           wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER | wxMAXIMIZE_BOX),
-      tape_image_(std::move(tape_image)),
-      parser_(std::move(parser))
+      tape_analysis_(tape_analysis)
 {
     BuildContent();
     DetectDecoderMode();
     PopulateStructureList();
 
-    if (!tape_image_.empty() && initial_element_index < tape_image_.elements().size()) {
+    if (!tape_analysis_.element_views.empty() && initial_element_index < tape_analysis_.element_views.size()) {
         structure_list_->SetItemState(static_cast<long>(initial_element_index), wxLIST_STATE_SELECTED | wxLIST_STATE_FOCUSED, wxLIST_STATE_SELECTED | wxLIST_STATE_FOCUSED);
         structure_list_->EnsureVisible(static_cast<long>(initial_element_index));
         ShowSelectedElement(initial_element_index);
@@ -138,37 +109,27 @@ void RawTapeExplorerDialog::PopulateStructureList()
 {
     structure_list_->DeleteAllItems();
 
-    const auto& elements = tape_image_.elements();
-    if (elements.empty()) {
+    if (tape_analysis_.element_views.empty()) {
         return;
     }
-
-    TapeProgressDialog progress(this, "Rendering tape structure", "records");
-    std::size_t last_progress_records = 0;
-    const auto step = progressStep(elements.size());
-    for (std::size_t index = 0; index < elements.size(); ++index) {
-        const auto view = describeTapeElement(elements[index]);
+    for (std::size_t index = 0; index < tape_analysis_.element_views.size(); ++index) {
+        const auto& view = tape_analysis_.element_views[index];
         const auto row = structure_list_->InsertItem(static_cast<long>(index), wxString::Format("%zu", index));
         structure_list_->SetItem(row, 1, Utf8(view.type));
         structure_list_->SetItem(row, 2, Utf8(view.offset));
         structure_list_->SetItem(row, 3, Utf8(view.size));
         structure_list_->SetItem(row, 4, Utf8(view.details));
         structure_list_->SetItemData(row, static_cast<long>(index));
-        const auto current = index + 1;
-        if (shouldUpdateProgress(current, elements.size(), last_progress_records, step)) {
-            progress.SetProgress("Rendering tape structure...", current, elements.size());
-        }
     }
 }
 
 void RawTapeExplorerDialog::ShowSelectedElement(std::size_t index)
 {
-    const auto& elements = tape_image_.elements();
-    if (index >= elements.size()) {
+    if (index >= tape_analysis_.element_views.size()) {
         selected_bytes_.clear();
         selected_element_index_ = static_cast<std::size_t>(-1);
     } else {
-        selected_bytes_ = describeTapeElement(elements[index]).bytes;
+        selected_bytes_ = tape_analysis_.element_views[index].bytes;
         selected_element_index_ = index;
     }
 
@@ -215,7 +176,7 @@ void RawTapeExplorerDialog::SetDecoderMode(DecoderMode decoder_mode)
 
 void RawTapeExplorerDialog::DetectDecoderMode()
 {
-    SetDecoderMode(parser_.isAs400Tape(tape_image_) ? DecoderMode::IbmAs400 : DecoderMode::Generic);
+    SetDecoderMode(tape_analysis_.is_as400_tape ? DecoderMode::IbmAs400 : DecoderMode::Generic);
 }
 
 void RawTapeExplorerDialog::UpdateDecoderPanel()
@@ -224,14 +185,13 @@ void RawTapeExplorerDialog::UpdateDecoderPanel()
         return;
     }
 
-    const auto& elements = tape_image_.elements();
-    if (selected_element_index_ >= elements.size() || !elements[selected_element_index_].isRecord()) {
+    if (selected_element_index_ >= tape_analysis_.parsed_records.size()) {
         decoder_panel_->SetMessage("AS/400 record", "Select a data record to inspect its AS/400 label type.");
         hex_decoder_splitter_->Layout();
         return;
     }
 
-    const auto info = parser_.parseRecord(elements[selected_element_index_].record().data);
+    const auto& info = tape_analysis_.parsed_records[selected_element_index_];
     if (info.recognized) {
         DecoderProperty record;
         record.name = "Record";

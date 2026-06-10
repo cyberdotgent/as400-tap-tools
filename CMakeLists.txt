@@ -108,6 +108,8 @@ add_executable(as400-tap-tools WIN32 MACOSX_BUNDLE
     src/TapeProgressDialog.h
     src/TapeElementView.cpp
     src/TapeElementView.h
+    src/TapeAnalysis.cpp
+    src/TapeAnalysis.h
     ${APP_ICON_PNG}
 )
 

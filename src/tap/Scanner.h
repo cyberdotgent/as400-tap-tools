@@ -18,8 +18,16 @@ struct ScanResult {
 
 class Scanner {
 public:
-    ScanResult scan(std::istream& input, std::uint64_t total_bytes = 0, const ProgressCallback& progress = {}) const;
-    ScanResult scan(const std::filesystem::path& path, std::uint64_t total_bytes = 0, const ProgressCallback& progress = {}) const;
+    ScanResult scan(
+        std::istream& input,
+        std::uint64_t total_bytes = 0,
+        const ProgressCallback& progress = {},
+        const ElementCallback& on_element = {}) const;
+    ScanResult scan(
+        const std::filesystem::path& path,
+        std::uint64_t total_bytes = 0,
+        const ProgressCallback& progress = {},
+        const ElementCallback& on_element = {}) const;
 };
 
 } // namespace tap

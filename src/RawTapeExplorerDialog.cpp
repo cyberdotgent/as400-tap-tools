@@ -1,8 +1,11 @@
 #include "RawTapeExplorerDialog.h"
 
+#include "utils/RecordFields.h"
+
 #include <string_view>
 #include <utility>
 
+#include <wx/event.h>
 #include <wx/font.h>
 #include <wx/listctrl.h>
 #include <wx/panel.h>
@@ -20,14 +23,14 @@ wxString Utf8(std::string_view text)
     return wxString::FromUTF8(text.data(), text.size());
 }
 
-DecoderProperty ToDecoderProperty(const as400::RecordField& field)
+DecoderProperty ToDecoderProperty(const as400::RecordField& field, utils::ebcdic::CCSID ccsid)
 {
     DecoderProperty property;
     property.name = field.name;
-    property.value = field.value;
+    property.value = utils::renderFieldValue(field, ccsid);
     property.children.reserve(field.children.size());
     for (const auto& child : field.children) {
-        property.children.push_back(ToDecoderProperty(child));
+        property.children.push_back(ToDecoderProperty(child, ccsid));
     }
     return property;
 }
@@ -36,15 +39,19 @@ DecoderProperty ToDecoderProperty(const as400::RecordField& field)
 
 RawTapeExplorerDialog::RawTapeExplorerDialog(
     wxWindow* parent,
+    const tap::TapeImage& tape_image,
     const TapeAnalysis& tape_analysis,
+    utils::ebcdic::CCSID& selected_ccsid,
     std::size_t initial_element_index)
     : wxDialog(parent,
           wxID_ANY,
           wxString::FromUTF8("Raw Tape Explorer"),
           wxDefaultPosition,
           wxSize(1100, 720),
-          wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER | wxMAXIMIZE_BOX),
-      tape_analysis_(tape_analysis)
+      wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER | wxMAXIMIZE_BOX),
+      tape_image_(tape_image),
+      tape_analysis_(tape_analysis),
+      selected_ccsid_(selected_ccsid)
 {
     BuildContent();
     DetectDecoderMode();
@@ -143,20 +150,21 @@ void RawTapeExplorerDialog::RefreshHexView()
         return;
     }
 
-    hex_view_->SetValue(Utf8(formatHexView(selected_bytes_, encoding_)));
+    hex_view_->SetValue(Utf8(formatHexView(selected_bytes_, encoding_, selected_ccsid_)));
 }
 
 void RawTapeExplorerDialog::SetEncoding(TextEncoding encoding)
 {
     encoding_ = encoding;
     RefreshHexView();
+    UpdateDecoderPanel();
 }
 
 void RawTapeExplorerDialog::SetDecoderMode(DecoderMode decoder_mode)
 {
     decoder_mode_ = decoder_mode;
     if (decoder_mode_ == DecoderMode::IbmAs400) {
-        SetEncoding(TextEncoding::EbcdicCp37);
+        SetEncoding(TextEncoding::Ebcdic);
         if (hex_decoder_splitter_ && !hex_decoder_splitter_->IsSplit()) {
             const auto height = std::max(120, hex_decoder_splitter_->GetClientSize().GetHeight() - 180);
             hex_decoder_splitter_->SplitHorizontally(hex_view_, decoder_panel_, height);
@@ -199,7 +207,7 @@ void RawTapeExplorerDialog::UpdateDecoderPanel()
         record.children.push_back(DecoderProperty{"Label code", info.code, {}});
         record.children.push_back(DecoderProperty{"Decoder", "IBM AS/400", {}});
         for (const auto& field : info.fields) {
-            record.children.push_back(ToDecoderProperty(field));
+            record.children.push_back(ToDecoderProperty(field, selected_ccsid_));
         }
         if (info.fields.empty()) {
             record.children.push_back(DecoderProperty{"Status", "No additional label fields decoded.", {}});

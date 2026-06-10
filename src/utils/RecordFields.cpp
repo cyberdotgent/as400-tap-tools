@@ -1,5 +1,7 @@
 #include "RecordFields.h"
 
+#include "utils/ebcdic/Ebcdic.h"
+
 #include <algorithm>
 #include <cctype>
 #include <utility>
@@ -40,56 +42,77 @@ const as400::RecordField* findChildField(const as400::RecordField& field, std::s
     return findField(field.children, name);
 }
 
-std::string fieldValue(const as400::RecordInfo& record, std::string_view name)
+std::string renderFieldValue(const as400::RecordField& field, utils::ebcdic::CCSID ccsid)
+{
+    if (field.has_display_value) {
+        return field.display_value;
+    }
+
+    return utils::ebcdic::decode(field.raw_value, ccsid);
+}
+
+std::string fieldValue(const as400::RecordInfo& record, std::string_view name, utils::ebcdic::CCSID ccsid)
 {
     const auto* field = findField(record, name);
-    return field == nullptr ? std::string{} : field->value;
+    return field == nullptr ? std::string{} : renderFieldValue(*field, ccsid);
 }
 
-std::string childFieldValue(const as400::RecordField& field, std::string_view name)
+std::string childFieldValue(const as400::RecordField& field, std::string_view name, utils::ebcdic::CCSID ccsid)
 {
     const auto* child = findChildField(field, name);
-    return child == nullptr ? std::string{} : child->value;
+    return child == nullptr ? std::string{} : renderFieldValue(*child, ccsid);
 }
 
-std::string decodedDateValue(const as400::RecordInfo& record, std::string_view name, bool expiration_date)
+std::string decodedDateValue(const as400::RecordInfo& record, std::string_view name, utils::ebcdic::CCSID ccsid, bool expiration_date)
 {
     const auto* field = findField(record, name);
     if (field == nullptr) {
         return {};
     }
 
+    const auto field_value = renderFieldValue(*field, ccsid);
     if (expiration_date) {
-        const auto normalized = normalizedExpirationValue(field->value);
+        const auto normalized = normalizedExpirationValue(field_value);
         if (!normalized.empty()) {
             return normalized;
         }
     }
 
-    const auto decoded = childFieldValue(*field, "Date");
-    return decoded.empty() ? field->value : decoded;
+    const auto decoded = childFieldValue(*field, "Date", ccsid);
+    return decoded.empty() ? field_value : decoded;
 }
 
-void appendField(std::vector<as400::RecordField>& fields, const char* label, const std::string& value)
+as400::RecordField makeRawField(const char* label, std::vector<std::uint8_t> raw_value)
+{
+    as400::RecordField field;
+    field.name = label;
+    field.raw_value = std::move(raw_value);
+    return field;
+}
+
+as400::RecordField makeDisplayField(const char* label, std::string value)
+{
+    as400::RecordField field;
+    field.name = label;
+    field.display_value = std::move(value);
+    field.has_display_value = true;
+    return field;
+}
+
+void appendField(std::vector<as400::RecordField>& fields, const char* label, std::vector<std::uint8_t> raw_value)
+{
+    if (raw_value.empty()) {
+        return;
+    }
+    fields.push_back(makeRawField(label, std::move(raw_value)));
+}
+
+void appendDisplayField(std::vector<as400::RecordField>& fields, const char* label, std::string value)
 {
     if (value.empty()) {
         return;
     }
-    fields.push_back(as400::RecordField{label, value});
-}
-
-std::string formatDetails(const std::vector<as400::RecordField>& fields)
-{
-    std::string details;
-    for (const auto& field : fields) {
-        if (!details.empty()) {
-            details += " | ";
-        }
-        details += field.name;
-        details += ": ";
-        details += field.value;
-    }
-    return details;
+    fields.push_back(makeDisplayField(label, std::move(value)));
 }
 
 as400::RecordInfo makeInfo(
@@ -103,7 +126,6 @@ as400::RecordInfo makeInfo(
     info.code = std::move(code);
     info.name = std::move(name);
     info.fields = std::move(fields);
-    info.details = formatDetails(info.fields);
     info.recognized = true;
     return info;
 }

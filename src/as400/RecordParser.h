@@ -1,7 +1,6 @@
 #pragma once
 
 #include "tap/TapeImage.h"
-
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -21,7 +20,9 @@ enum class RecordType {
 
 struct RecordField {
     std::string name;
-    std::string value;
+    std::vector<std::uint8_t> raw_value;
+    std::string display_value;
+    bool has_display_value = false;
     std::vector<RecordField> children;
 };
 

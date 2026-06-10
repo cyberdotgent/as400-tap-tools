@@ -1,11 +1,9 @@
-#include "Cp37.h"
+#include "Ccsid37.h"
 
-#include <array>
-
-namespace as400 {
+namespace utils::ebcdic::ccsids {
 namespace {
 
-constexpr std::array<unsigned char, 256> Cp37ToUnicodeLatin1{
+constexpr std::array<unsigned char, 256> Ccsid37ToLatin1{
     0x00, 0x01, 0x02, 0x03, 0x9C, 0x09, 0x86, 0x7F, 0x97, 0x8D, 0x8E, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
     0x10, 0x11, 0x12, 0x13, 0x9D, 0x85, 0x08, 0x87, 0x18, 0x19, 0x92, 0x8F, 0x1C, 0x1D, 0x1E, 0x1F,
     0x80, 0x81, 0x82, 0x83, 0x84, 0x0A, 0x17, 0x1B, 0x88, 0x89, 0x8A, 0x8B, 0x8C, 0x05, 0x06, 0x07,
@@ -24,52 +22,11 @@ constexpr std::array<unsigned char, 256> Cp37ToUnicodeLatin1{
     0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39, 0xB3, 0xDB, 0xDC, 0xD9, 0xDA, 0x9F,
 };
 
-std::array<std::uint8_t, 128> buildAsciiToCp37()
-{
-    std::array<std::uint8_t, 128> result{};
-    result.fill(0x6F);
-    for (std::size_t index = 0; index < Cp37ToUnicodeLatin1.size(); ++index) {
-        const auto decoded = Cp37ToUnicodeLatin1[index];
-        if (decoded < result.size()) {
-            result[decoded] = static_cast<std::uint8_t>(index);
-        }
-    }
-    return result;
-}
-
 } // namespace
 
-char decodeCp37Byte(std::uint8_t value)
+const std::array<unsigned char, 256>& ccsid37ToLatin1Table()
 {
-    const auto decoded = Cp37ToUnicodeLatin1[value];
-    return decoded >= 0x20 && decoded < 0x7F ? static_cast<char>(decoded) : '.';
+    return Ccsid37ToLatin1;
 }
 
-std::string decodeCp37(const std::vector<std::uint8_t>& data)
-{
-    return decodeCp37(data.data(), data.size());
-}
-
-std::string decodeCp37(const std::uint8_t* data, std::size_t size)
-{
-    std::string result;
-    result.reserve(size);
-    for (std::size_t index = 0; index < size; ++index) {
-        result.push_back(decodeCp37Byte(data[index]));
-    }
-    return result;
-}
-
-std::vector<std::uint8_t> encodeCp37(std::string_view text)
-{
-    static const auto ascii_to_cp37 = buildAsciiToCp37();
-    std::vector<std::uint8_t> result;
-    result.reserve(text.size());
-    for (const auto ch : text) {
-        const auto value = static_cast<unsigned char>(ch);
-        result.push_back(value < ascii_to_cp37.size() ? ascii_to_cp37[value] : 0x6F);
-    }
-    return result;
-}
-
-} // namespace as400
+} // namespace utils::ebcdic::ccsids

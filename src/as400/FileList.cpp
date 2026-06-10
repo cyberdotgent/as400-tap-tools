@@ -17,15 +17,7 @@ std::optional<FileListEntry> makeAs400FileListEntry(
     FileListEntry entry;
     entry.element_index = element_index;
     entry.record = record;
-    entry.file_name = utils::fieldValue(record, "File");
     entry.size = utils::Format::humanSize(payload_size_bytes);
-    entry.set = utils::fieldValue(record, "Set");
-    entry.section = utils::fieldValue(record, "Section");
-    entry.sequence = utils::fieldValue(record, "Sequence");
-    entry.generation = utils::fieldValue(record, "Generation");
-    entry.created = utils::decodedDateValue(record, "Created", false);
-    entry.expires = utils::decodedDateValue(record, "Expires", true);
-    entry.system = utils::fieldValue(record, "System");
     return entry;
 }
 

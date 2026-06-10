@@ -1,5 +1,7 @@
 #pragma once
 
+#include "utils/ebcdic/Ccsids.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -8,7 +10,7 @@
 
 enum class TextEncoding {
     Ascii,
-    EbcdicCp37
+    Ebcdic
 };
 
 struct HexSearchResult {
@@ -18,10 +20,17 @@ struct HexSearchResult {
     std::size_t text_length = 0;
 };
 
-std::string formatHexView(const std::vector<std::uint8_t>& data, TextEncoding encoding);
-std::vector<std::uint8_t> encodeSearchText(std::string_view text, TextEncoding encoding);
+std::string formatHexView(
+    const std::vector<std::uint8_t>& data,
+    TextEncoding encoding,
+    utils::ebcdic::CCSID ebcdic_ccsid = utils::ebcdic::CCSID::Ccsid37);
+std::vector<std::uint8_t> encodeSearchText(
+    std::string_view text,
+    TextEncoding encoding,
+    utils::ebcdic::CCSID ebcdic_ccsid = utils::ebcdic::CCSID::Ccsid37);
 HexSearchResult findBytesInHexView(
     const std::vector<std::uint8_t>& data,
     const std::vector<std::uint8_t>& needle,
     TextEncoding encoding,
+    utils::ebcdic::CCSID ebcdic_ccsid = utils::ebcdic::CCSID::Ccsid37,
     std::size_t start_byte_offset = 0);

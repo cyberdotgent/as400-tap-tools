@@ -59,8 +59,6 @@ target_include_directories(tap
 )
 
 add_library(as400 STATIC
-    src/as400/Cp37.cpp
-    src/as400/Cp37.h
     src/as400/As400Date.cpp
     src/as400/As400Date.h
     src/as400/FileList.cpp
@@ -73,6 +71,12 @@ add_library(as400 STATIC
     src/utils/Format.h
     src/utils/RecordFields.cpp
     src/utils/RecordFields.h
+    src/utils/ebcdic/Ccsids.cpp
+    src/utils/ebcdic/Ccsids.h
+    src/utils/ebcdic/Ebcdic.cpp
+    src/utils/ebcdic/Ebcdic.h
+    src/utils/ebcdic/ccsids/Ccsid37.cpp
+    src/utils/ebcdic/ccsids/Ccsid37.h
 )
 
 target_include_directories(as400
@@ -96,8 +100,6 @@ set(TOOLBAR_RAW_EXPLORER_PNG "${CMAKE_CURRENT_SOURCE_DIR}/src/assets/toolbar-raw
 add_executable(as400-tap-tools WIN32 MACOSX_BUNDLE
     src/App.cpp
     src/App.h
-    src/As400FileListDialog.cpp
-    src/As400FileListDialog.h
     src/DecoderPropertyPane.cpp
     src/DecoderPropertyPane.h
     src/HexFormatter.cpp

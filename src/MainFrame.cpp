@@ -34,6 +34,7 @@ constexpr int CloseFileMenuId = wxID_CLOSE;
 constexpr int ExitMenuId = wxID_EXIT;
 constexpr int AboutMenuId = wxID_ABOUT;
 constexpr int RawTapeExplorerMenuId = wxID_HIGHEST + 5;
+constexpr int FirstCcsidMenuId = wxID_HIGHEST + 100;
 
 wxString Utf8(std::string_view text)
 {
@@ -127,11 +128,13 @@ MainFrame::MainFrame(const wxString& title)
     UpdateWindowTitle();
     UpdateStatusText();
     UpdateToolState();
+    UpdateCcsidMenuState();
 
     Bind(wxEVT_MENU, &MainFrame::OnOpen, this, OpenMenuId);
     Bind(wxEVT_MENU, &MainFrame::OnCloseFile, this, CloseFileMenuId);
     Bind(wxEVT_MENU, [this](wxCommandEvent&) { Close(true); }, ExitMenuId);
     Bind(wxEVT_MENU, &MainFrame::OnRawExplorerView, this, RawTapeExplorerMenuId);
+    Bind(wxEVT_MENU, &MainFrame::OnSelectCcsid, this, FirstCcsidMenuId, FirstCcsidMenuId + 255);
     Bind(wxEVT_MENU, &MainFrame::OnAbout, this, AboutMenuId);
     file_list_view_->Bind(wxEVT_LIST_ITEM_ACTIVATED, &MainFrame::OnFileListItemActivated, this);
 }
@@ -146,6 +149,7 @@ void MainFrame::BuildMenuBar()
 
     auto* view_menu = new wxMenu();
     raw_explorer_item_ = view_menu->Append(RawTapeExplorerMenuId, wxString::FromUTF8("&Raw Tape Explorer...\tCtrl-R"));
+    BuildCcsidMenu(view_menu);
 
     auto* help_menu = new wxMenu();
     help_menu->Append(AboutMenuId, wxString::FromUTF8("&About"));
@@ -155,6 +159,20 @@ void MainFrame::BuildMenuBar()
     menu_bar->Append(view_menu, wxString::FromUTF8("&View"));
     menu_bar->Append(help_menu, wxString::FromUTF8("&Help"));
     SetMenuBar(menu_bar);
+}
+
+void MainFrame::BuildCcsidMenu(wxMenu* view_menu)
+{
+    ccsid_menu_ = new wxMenu();
+    int menu_id = FirstCcsidMenuId;
+    for (const auto& metadata : utils::ebcdic::availableCcsids()) {
+        const auto label = wxString::FromUTF8(utils::ebcdic::ccsidMenuLabel(metadata.ccsid));
+        ccsid_menu_->AppendRadioItem(menu_id, label);
+        ccsid_menu_ids_.emplace(menu_id, metadata.ccsid);
+        ++menu_id;
+    }
+
+    view_menu->AppendSubMenu(ccsid_menu_, wxString::FromUTF8("CCSID"));
 }
 
 void MainFrame::BuildToolBar()
@@ -258,6 +276,7 @@ void MainFrame::LoadTapeFile(const std::filesystem::path& path)
     }
 
     loaded_path_ = path;
+    tape_image_ = read_result.value();
     tape_analysis_ = analysis_builder.finish();
     PopulateFileListView();
 
@@ -265,16 +284,28 @@ void MainFrame::LoadTapeFile(const std::filesystem::path& path)
     ShowFileListLoadMessage();
     UpdateStatusText();
     UpdateToolState();
+    UpdateCcsidMenuState();
 }
 
 void MainFrame::ClearTape()
 {
     loaded_path_.clear();
+    tape_image_.reset();
     tape_analysis_.reset();
     PopulateFileListView();
     UpdateWindowTitle();
     UpdateStatusText();
     UpdateToolState();
+    UpdateCcsidMenuState();
+}
+
+void MainFrame::RefreshDisplayedData()
+{
+    PopulateFileListView();
+    UpdateFileListHeader();
+    UpdateStatusText();
+    UpdateToolState();
+    UpdateCcsidMenuState();
 }
 
 void MainFrame::PopulateFileListView()
@@ -292,15 +323,15 @@ void MainFrame::PopulateFileListView()
     for (std::size_t index = 0; index < tape_analysis_->file_list_entries.size(); ++index) {
         const auto& entry = tape_analysis_->file_list_entries[index];
         const auto row = file_list_view_->InsertItem(static_cast<long>(index), wxString::Format("%zu", index + 1));
-        file_list_view_->SetItem(row, 1, Utf8(entry.file_name));
+        file_list_view_->SetItem(row, 1, Utf8(::utils::fieldValue(entry.record, "File", selected_ccsid_)));
         file_list_view_->SetItem(row, 2, Utf8(entry.size));
-        file_list_view_->SetItem(row, 3, Utf8(entry.set));
-        file_list_view_->SetItem(row, 4, Utf8(entry.section));
-        file_list_view_->SetItem(row, 5, Utf8(entry.sequence));
-        file_list_view_->SetItem(row, 6, Utf8(entry.generation));
-        file_list_view_->SetItem(row, 7, Utf8(entry.created));
-        file_list_view_->SetItem(row, 8, Utf8(entry.expires));
-        file_list_view_->SetItem(row, 9, Utf8(entry.system));
+        file_list_view_->SetItem(row, 3, Utf8(::utils::fieldValue(entry.record, "Set", selected_ccsid_)));
+        file_list_view_->SetItem(row, 4, Utf8(::utils::fieldValue(entry.record, "Section", selected_ccsid_)));
+        file_list_view_->SetItem(row, 5, Utf8(::utils::fieldValue(entry.record, "Sequence", selected_ccsid_)));
+        file_list_view_->SetItem(row, 6, Utf8(::utils::fieldValue(entry.record, "Generation", selected_ccsid_)));
+        file_list_view_->SetItem(row, 7, Utf8(::utils::decodedDateValue(entry.record, "Created", selected_ccsid_, false)));
+        file_list_view_->SetItem(row, 8, Utf8(::utils::decodedDateValue(entry.record, "Expires", selected_ccsid_, true)));
+        file_list_view_->SetItem(row, 9, Utf8(::utils::fieldValue(entry.record, "System", selected_ccsid_)));
         file_list_view_->SetItemData(row, static_cast<long>(entry.element_index));
     }
 
@@ -322,8 +353,8 @@ void MainFrame::UpdateFileListHeader()
         return;
     }
 
-    const auto volume = ::utils::fieldValue(*tape_analysis_->volume_label, "Volume");
-    const auto owner = ::utils::fieldValue(*tape_analysis_->volume_label, "Owner");
+    const auto volume = ::utils::fieldValue(*tape_analysis_->volume_label, "Volume", selected_ccsid_);
+    const auto owner = ::utils::fieldValue(*tape_analysis_->volume_label, "Owner", selected_ccsid_);
     volume_label_value_->SetLabel(wxString::FromUTF8(volume.empty() ? "-" : volume.c_str()));
     owner_label_value_->SetLabel(wxString::FromUTF8(owner.empty() ? "-" : owner.c_str()));
 
@@ -340,6 +371,17 @@ void MainFrame::UpdateToolState()
     }
     if (tool_bar_) {
         tool_bar_->EnableTool(RawTapeExplorerMenuId, has_tape);
+    }
+}
+
+void MainFrame::UpdateCcsidMenuState()
+{
+    if (!ccsid_menu_) {
+        return;
+    }
+
+    for (const auto& entry : ccsid_menu_ids_) {
+        ccsid_menu_->Check(entry.first, entry.second == selected_ccsid_);
     }
 }
 
@@ -425,7 +467,7 @@ void MainFrame::OnCloseFile(wxCommandEvent&)
 
 void MainFrame::OnRawExplorerView(wxCommandEvent&)
 {
-    if (!tape_analysis_) {
+    if (!tape_analysis_ || !tape_image_) {
         wxMessageBox(
             wxString::FromUTF8("Load a tape before opening the raw tape explorer."),
             wxString::FromUTF8("Raw Tape Explorer"),
@@ -436,9 +478,12 @@ void MainFrame::OnRawExplorerView(wxCommandEvent&)
 
     RawTapeExplorerDialog dialog(
         this,
+        *tape_image_,
         *tape_analysis_,
+        selected_ccsid_,
         0);
     dialog.ShowModal();
+    RefreshDisplayedData();
 }
 
 void MainFrame::OnFileListItemActivated(wxListEvent& event)
@@ -448,11 +493,33 @@ void MainFrame::OnFileListItemActivated(wxListEvent& event)
         return;
     }
 
+    if (!tape_image_) {
+        return;
+    }
+
+    if (!tape_analysis_) {
+        return;
+    }
+
     RawTapeExplorerDialog dialog(
         this,
+        *tape_image_,
         *tape_analysis_,
+        selected_ccsid_,
         static_cast<std::size_t>(file_list_view_->GetItemData(item)));
     dialog.ShowModal();
+    RefreshDisplayedData();
+}
+
+void MainFrame::OnSelectCcsid(wxCommandEvent& event)
+{
+    const auto selected = ccsid_menu_ids_.find(event.GetId());
+    if (selected == ccsid_menu_ids_.end()) {
+        return;
+    }
+
+    selected_ccsid_ = selected->second;
+    RefreshDisplayedData();
 }
 
 void MainFrame::OnAbout(wxCommandEvent&)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "as400/RecordParser.h"
+#include "utils/ebcdic/Ccsids.h"
 
 #include <string>
 #include <string_view>
@@ -12,12 +13,15 @@ const as400::RecordField* findField(const std::vector<as400::RecordField>& field
 const as400::RecordField* findField(const as400::RecordInfo& record, std::string_view name);
 const as400::RecordField* findChildField(const as400::RecordField& field, std::string_view name);
 
-std::string fieldValue(const as400::RecordInfo& record, std::string_view name);
-std::string childFieldValue(const as400::RecordField& field, std::string_view name);
-std::string decodedDateValue(const as400::RecordInfo& record, std::string_view name, bool expiration_date);
+std::string renderFieldValue(const as400::RecordField& field, utils::ebcdic::CCSID ccsid);
+std::string fieldValue(const as400::RecordInfo& record, std::string_view name, utils::ebcdic::CCSID ccsid);
+std::string childFieldValue(const as400::RecordField& field, std::string_view name, utils::ebcdic::CCSID ccsid);
+std::string decodedDateValue(const as400::RecordInfo& record, std::string_view name, utils::ebcdic::CCSID ccsid, bool expiration_date);
 
-void appendField(std::vector<as400::RecordField>& fields, const char* label, const std::string& value);
-std::string formatDetails(const std::vector<as400::RecordField>& fields);
+as400::RecordField makeRawField(const char* label, std::vector<std::uint8_t> raw_value);
+as400::RecordField makeDisplayField(const char* label, std::string value);
+void appendField(std::vector<as400::RecordField>& fields, const char* label, std::vector<std::uint8_t> raw_value);
+void appendDisplayField(std::vector<as400::RecordField>& fields, const char* label, std::string value);
 as400::RecordInfo makeInfo(
     as400::RecordType type,
     std::string code,

@@ -1,6 +1,6 @@
 #include "HexFormatter.h"
 
-#include "as400/Cp37.h"
+#include "utils/ebcdic/Ebcdic.h"
 
 #include <algorithm>
 #include <cctype>
@@ -18,9 +18,9 @@ char printableAscii(std::uint8_t value)
     return std::isprint(static_cast<unsigned char>(value)) != 0 ? static_cast<char>(value) : '.';
 }
 
-char printable(std::uint8_t value, TextEncoding encoding)
+char printable(std::uint8_t value, TextEncoding encoding, utils::ebcdic::CCSID ebcdic_ccsid)
 {
-    return encoding == TextEncoding::EbcdicCp37 ? as400::decodeCp37Byte(value) : printableAscii(value);
+    return encoding == TextEncoding::Ebcdic ? utils::ebcdic::decodeByte(value, ebcdic_ccsid) : printableAscii(value);
 }
 
 std::size_t textColumnOffset(std::size_t line_start, std::size_t byte_offset)
@@ -31,7 +31,10 @@ std::size_t textColumnOffset(std::size_t line_start, std::size_t byte_offset)
 
 } // namespace
 
-std::string formatHexView(const std::vector<std::uint8_t>& data, TextEncoding encoding)
+std::string formatHexView(
+    const std::vector<std::uint8_t>& data,
+    TextEncoding encoding,
+    utils::ebcdic::CCSID ebcdic_ccsid)
 {
     if (data.empty()) {
         return {};
@@ -58,7 +61,7 @@ std::string formatHexView(const std::vector<std::uint8_t>& data, TextEncoding en
 
         output << ' ';
         for (std::size_t index = 0; index < line_count; ++index) {
-            output << printable(data[offset + index], encoding);
+            output << printable(data[offset + index], encoding, ebcdic_ccsid);
         }
         output << '\n';
     }
@@ -66,7 +69,10 @@ std::string formatHexView(const std::vector<std::uint8_t>& data, TextEncoding en
     return output.str();
 }
 
-std::vector<std::uint8_t> encodeSearchText(std::string_view text, TextEncoding encoding)
+std::vector<std::uint8_t> encodeSearchText(
+    std::string_view text,
+    TextEncoding encoding,
+    utils::ebcdic::CCSID ebcdic_ccsid)
 {
     std::vector<std::uint8_t> result;
     result.reserve(text.size());
@@ -78,13 +84,14 @@ std::vector<std::uint8_t> encodeSearchText(std::string_view text, TextEncoding e
         return result;
     }
 
-    return as400::encodeCp37(text);
+    return utils::ebcdic::encode(text, ebcdic_ccsid);
 }
 
 HexSearchResult findBytesInHexView(
     const std::vector<std::uint8_t>& data,
     const std::vector<std::uint8_t>& needle,
     TextEncoding encoding,
+    utils::ebcdic::CCSID ebcdic_ccsid,
     std::size_t start_byte_offset)
 {
     if (data.empty() || needle.empty() || needle.size() > data.size()) {
@@ -113,7 +120,8 @@ HexSearchResult findBytesInHexView(
     const auto byte_offset = static_cast<std::size_t>(std::distance(data.begin(), found));
     const auto formatted_prefix = formatHexView(
         std::vector<std::uint8_t>(data.begin(), data.begin() + static_cast<std::vector<std::uint8_t>::difference_type>(byte_offset)),
-        encoding);
+        encoding,
+        ebcdic_ccsid);
     const auto line_start = formatted_prefix.rfind('\n') == std::string::npos ? 0 : formatted_prefix.rfind('\n') + 1;
 
     HexSearchResult result;

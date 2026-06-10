@@ -3,6 +3,8 @@
 #include "DecoderPropertyPane.h"
 #include "HexFormatter.h"
 #include "TapeAnalysis.h"
+#include "as400/RecordParser.h"
+#include "tap/TapeImage.h"
 
 #include <cstddef>
 
@@ -18,7 +20,9 @@ class RawTapeExplorerDialog final : public wxDialog
 public:
     RawTapeExplorerDialog(
         wxWindow* parent,
+        const tap::TapeImage& tape_image,
         const TapeAnalysis& tape_analysis,
+        utils::ebcdic::CCSID& selected_ccsid,
         std::size_t initial_element_index = 0);
 
 private:
@@ -38,7 +42,9 @@ private:
 
     void OnStructureSelected(wxListEvent& event);
 
-    const TapeAnalysis& tape_analysis_;
+    const tap::TapeImage& tape_image_;
+    TapeAnalysis tape_analysis_;
+    utils::ebcdic::CCSID& selected_ccsid_;
     wxSplitterWindow* main_splitter_ = nullptr;
     wxSplitterWindow* hex_decoder_splitter_ = nullptr;
     DecoderPropertyPane* decoder_panel_ = nullptr;

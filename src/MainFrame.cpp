@@ -1,6 +1,5 @@
 #include "MainFrame.h"
 
-#include "As400FileListDialog.h"
 #include "TapeProgressDialog.h"
 #include "TapeElementView.h"
 #include "as400/FileList.h"
@@ -23,6 +22,7 @@
 #include <wx/panel.h>
 #include <wx/sizer.h>
 #include <wx/splitter.h>
+#include <wx/stattext.h>
 #include <wx/statusbr.h>
 #include <wx/string.h>
 #include <wx/textctrl.h>
@@ -41,6 +41,7 @@ constexpr int EncodingEbcdicMenuId = wxID_HIGHEST + 2;
 constexpr int DecoderGenericMenuId = wxID_HIGHEST + 3;
 constexpr int DecoderIbmAs400MenuId = wxID_HIGHEST + 4;
 constexpr int As400FileListMenuId = wxID_HIGHEST + 5;
+constexpr int RawTapeExplorerMenuId = wxID_HIGHEST + 6;
 
 constexpr long NoSelection = -1;
 
@@ -105,8 +106,10 @@ MainFrame::MainFrame(const wxString& title)
     Bind(wxEVT_MENU, &MainFrame::OnDecoderGeneric, this, DecoderGenericMenuId);
     Bind(wxEVT_MENU, &MainFrame::OnDecoderIbmAs400, this, DecoderIbmAs400MenuId);
     Bind(wxEVT_MENU, &MainFrame::OnAs400FileList, this, As400FileListMenuId);
+    Bind(wxEVT_MENU, &MainFrame::OnRawExplorerView, this, RawTapeExplorerMenuId);
     Bind(wxEVT_MENU, &MainFrame::OnAbout, this, AboutMenuId);
     structure_list_->Bind(wxEVT_LIST_ITEM_SELECTED, &MainFrame::OnStructureSelected, this);
+    file_list_view_->Bind(wxEVT_LIST_ITEM_ACTIVATED, &MainFrame::OnFileListItemActivated, this);
 }
 
 void MainFrame::BuildMenuBar()
@@ -132,13 +135,13 @@ void MainFrame::BuildMenuBar()
     as400_decoder_item_ = decoder_menu->AppendRadioItem(DecoderIbmAs400MenuId, wxString::FromUTF8("&IBM AS/400"));
     generic_decoder_item_->Check(true);
 
-    auto* as400_menu = new wxMenu();
-    as400_menu->Append(As400FileListMenuId, wxString::FromUTF8("&File list...\tCtrl-L"));
-
     auto* view_menu = new wxMenu();
+    as400_file_list_item_ = view_menu->AppendRadioItem(As400FileListMenuId, wxString::FromUTF8("&AS/400 File List\tCtrl-L"));
+    raw_explorer_item_ = view_menu->AppendRadioItem(RawTapeExplorerMenuId, wxString::FromUTF8("&Raw Tape Explorer"));
+    as400_file_list_item_->Check(true);
+    view_menu->AppendSeparator();
     view_menu->AppendSubMenu(encoding_menu, wxString::FromUTF8("&Encoding"));
     view_menu->AppendSubMenu(decoder_menu, wxString::FromUTF8("&Decoders"));
-    view_menu->AppendSubMenu(as400_menu, wxString::FromUTF8("&IBM AS/400"));
 
     auto* help_menu = new wxMenu();
     help_menu->Append(AboutMenuId, wxString::FromUTF8("&About"));
@@ -155,7 +158,43 @@ void MainFrame::BuildContent()
 {
     auto* panel = new wxPanel(this);
     auto* sizer = new wxBoxSizer(wxVERTICAL);
-    main_splitter_ = new wxSplitterWindow(panel, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE);
+    BuildFileListView(panel);
+    BuildRawExplorerView(panel);
+
+    sizer->Add(file_list_panel_, 1, wxEXPAND);
+    sizer->Add(raw_explorer_panel_, 1, wxEXPAND);
+    panel->SetSizer(sizer);
+    file_list_panel_->Show(true);
+    raw_explorer_panel_->Show(false);
+}
+
+void MainFrame::BuildFileListView(wxWindow* parent)
+{
+    file_list_panel_ = new wxPanel(parent);
+    auto* sizer = new wxBoxSizer(wxVERTICAL);
+    file_list_hint_ = new wxStaticText(file_list_panel_, wxID_ANY, wxString::FromUTF8("Load an AS/400 tape to inspect its file list."));
+    sizer->Add(file_list_hint_, 0, wxALL | wxEXPAND, 10);
+
+    file_list_view_ = new wxListCtrl(file_list_panel_, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL | wxBORDER_SUNKEN);
+    file_list_view_->AppendColumn(wxString::FromUTF8("#"), wxLIST_FORMAT_RIGHT, 54);
+    file_list_view_->AppendColumn(wxString::FromUTF8("File"), wxLIST_FORMAT_LEFT, 180);
+    file_list_view_->AppendColumn(wxString::FromUTF8("Size"), wxLIST_FORMAT_RIGHT, 92);
+    file_list_view_->AppendColumn(wxString::FromUTF8("Set"), wxLIST_FORMAT_LEFT, 96);
+    file_list_view_->AppendColumn(wxString::FromUTF8("Section"), wxLIST_FORMAT_LEFT, 80);
+    file_list_view_->AppendColumn(wxString::FromUTF8("Sequence"), wxLIST_FORMAT_LEFT, 84);
+    file_list_view_->AppendColumn(wxString::FromUTF8("Generation"), wxLIST_FORMAT_LEFT, 92);
+    file_list_view_->AppendColumn(wxString::FromUTF8("Created"), wxLIST_FORMAT_LEFT, 112);
+    file_list_view_->AppendColumn(wxString::FromUTF8("Expires"), wxLIST_FORMAT_LEFT, 112);
+    file_list_view_->AppendColumn(wxString::FromUTF8("System"), wxLIST_FORMAT_LEFT, 140);
+    sizer->Add(file_list_view_, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 10);
+    file_list_panel_->SetSizer(sizer);
+}
+
+void MainFrame::BuildRawExplorerView(wxWindow* parent)
+{
+    raw_explorer_panel_ = new wxPanel(parent);
+    auto* sizer = new wxBoxSizer(wxVERTICAL);
+    main_splitter_ = new wxSplitterWindow(raw_explorer_panel_, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE);
 
     structure_list_ = new wxListCtrl(main_splitter_, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL);
     structure_list_->AppendColumn(wxString::FromUTF8("#"), wxLIST_FORMAT_RIGHT, 56);
@@ -186,7 +225,7 @@ void MainFrame::BuildContent()
     main_splitter_->SetSashGravity(0.0);
 
     sizer->Add(main_splitter_, 1, wxEXPAND);
-    panel->SetSizer(sizer);
+    raw_explorer_panel_->SetSizer(sizer);
 }
 
 void MainFrame::LoadTapeFile(const std::filesystem::path& path)
@@ -229,12 +268,15 @@ void MainFrame::LoadTapeFile(const std::filesystem::path& path)
     DetectDecoderMode();
 
     PopulateStructureList();
+    PopulateFileListView();
     if (!tape_image_.empty()) {
         structure_list_->SetItemState(0, wxLIST_STATE_SELECTED | wxLIST_STATE_FOCUSED, wxLIST_STATE_SELECTED | wxLIST_STATE_FOCUSED);
         ShowSelectedElement(0);
     } else {
         RefreshHexView();
     }
+
+    SetPrimaryView(PrimaryView::FileList);
 
     UpdateWindowTitle();
     UpdateStatusText();
@@ -249,10 +291,40 @@ void MainFrame::ClearTape()
     selected_element_index_ = std::numeric_limits<std::size_t>::max();
     next_search_offset_ = 0;
     SetDecoderMode(DecoderMode::Generic);
+    SetPrimaryView(PrimaryView::FileList);
+    PopulateFileListView();
     PopulateStructureList();
     RefreshHexView();
     UpdateWindowTitle();
     UpdateStatusText();
+}
+
+void MainFrame::PopulateFileListView()
+{
+    if (!file_list_view_) {
+        return;
+    }
+
+    file_list_view_->DeleteAllItems();
+    for (std::size_t index = 0; index < file_list_entries_.size(); ++index) {
+        const auto& entry = file_list_entries_[index];
+        const auto row = file_list_view_->InsertItem(static_cast<long>(index), wxString::Format("%zu", index + 1));
+        file_list_view_->SetItem(row, 1, Utf8(entry.file_name));
+        file_list_view_->SetItem(row, 2, Utf8(entry.size));
+        file_list_view_->SetItem(row, 3, Utf8(entry.set));
+        file_list_view_->SetItem(row, 4, Utf8(entry.section));
+        file_list_view_->SetItem(row, 5, Utf8(entry.sequence));
+        file_list_view_->SetItem(row, 6, Utf8(entry.generation));
+        file_list_view_->SetItem(row, 7, Utf8(entry.created));
+        file_list_view_->SetItem(row, 8, Utf8(entry.expires));
+        file_list_view_->SetItem(row, 9, Utf8(entry.system));
+        file_list_view_->SetItemData(row, static_cast<long>(entry.element_index));
+    }
+
+    for (int column = 0; column < file_list_view_->GetColumnCount(); ++column) {
+        file_list_view_->SetColumnWidth(column, wxLIST_AUTOSIZE_USEHEADER);
+    }
+    UpdateFileListHint();
 }
 
 void MainFrame::PopulateStructureList()
@@ -378,6 +450,27 @@ void MainFrame::DetectDecoderMode()
     SetDecoderMode(as400_parser_.isAs400Tape(tape_image_) ? DecoderMode::IbmAs400 : DecoderMode::Generic);
 }
 
+void MainFrame::SetPrimaryView(PrimaryView view)
+{
+    primary_view_ = view;
+    if (file_list_panel_) {
+        file_list_panel_->Show(primary_view_ == PrimaryView::FileList);
+    }
+    if (raw_explorer_panel_) {
+        raw_explorer_panel_->Show(primary_view_ == PrimaryView::RawExplorer);
+    }
+    if (as400_file_list_item_) {
+        as400_file_list_item_->Check(primary_view_ == PrimaryView::FileList);
+    }
+    if (raw_explorer_item_) {
+        raw_explorer_item_->Check(primary_view_ == PrimaryView::RawExplorer);
+    }
+    Layout();
+    if (GetStatusBar() != nullptr) {
+        UpdateStatusText();
+    }
+}
+
 void MainFrame::UpdateDecoderPanel()
 {
     if (!decoder_panel_ || decoder_mode_ != DecoderMode::IbmAs400) {
@@ -435,10 +528,52 @@ void MainFrame::UpdateWindowTitle()
         wxString::FromUTF8(loaded_path_.string().c_str())));
 }
 
+void MainFrame::UpdateFileListHint()
+{
+    if (!file_list_hint_) {
+        return;
+    }
+
+    if (loaded_path_.empty()) {
+        file_list_hint_->SetLabel(wxString::FromUTF8("Load an AS/400 tape to inspect its file list."));
+        return;
+    }
+
+    if (!as400_parser_.isAs400Tape(tape_image_)) {
+        file_list_hint_->SetLabel(wxString::FromUTF8("This tape is not recognized as an IBM AS/400 tape. Use View > Raw Tape Explorer to inspect the raw structure."));
+        return;
+    }
+
+    if (file_list_entries_.empty()) {
+        file_list_hint_->SetLabel(wxString::FromUTF8("This tape contains no HDR1 file labels. Use View > Raw Tape Explorer to inspect the raw structure."));
+        return;
+    }
+
+    file_list_hint_->SetLabel(wxString::FromUTF8("Double-click a file to open its HDR1 record in the raw tape explorer."));
+}
+
 void MainFrame::UpdateStatusText()
 {
     if (loaded_path_.empty()) {
         SetStatusText(wxString::FromUTF8("No tape loaded"));
+        return;
+    }
+
+    if (primary_view_ == PrimaryView::FileList) {
+        if (!as400_parser_.isAs400Tape(tape_image_)) {
+            SetStatusText(wxString::Format(
+                wxString::FromUTF8("%zu elements, %zu records, %zu tape marks | Not recognized as IBM AS/400"),
+                tape_image_.elementCount(),
+                tape_image_.recordCount(),
+                tape_image_.tapeMarkCount()));
+            return;
+        }
+
+        SetStatusText(wxString::Format(
+            wxString::FromUTF8("%zu files, %zu elements, %zu tape marks | IBM AS/400 file list"),
+            file_list_entries_.size(),
+            tape_image_.elementCount(),
+            tape_image_.tapeMarkCount()));
         return;
     }
 
@@ -574,37 +709,23 @@ void MainFrame::OnDecoderIbmAs400(wxCommandEvent&)
 
 void MainFrame::OnAs400FileList(wxCommandEvent&)
 {
-    if (tape_image_.empty()) {
-        wxMessageBox(
-            wxString::FromUTF8("Load a tape before opening the IBM AS/400 file list."),
-            wxString::FromUTF8("IBM AS/400 File List"),
-            wxOK | wxICON_ERROR,
-            this);
+    SetPrimaryView(PrimaryView::FileList);
+}
+
+void MainFrame::OnRawExplorerView(wxCommandEvent&)
+{
+    SetPrimaryView(PrimaryView::RawExplorer);
+}
+
+void MainFrame::OnFileListItemActivated(wxListEvent& event)
+{
+    const auto item = event.GetIndex();
+    if (item == NoSelection) {
         return;
     }
 
-    if (!as400_parser_.isAs400Tape(tape_image_)) {
-        wxMessageBox(
-            wxString::FromUTF8("The current tape is not recognized as an IBM AS/400 tape."),
-            wxString::FromUTF8("IBM AS/400 File List"),
-            wxOK | wxICON_ERROR,
-            this);
-        return;
-    }
-
-    if (file_list_entries_.empty()) {
-        wxMessageBox(
-            wxString::FromUTF8("No HDR1 file labels were found on this tape."),
-            wxString::FromUTF8("IBM AS/400 File List"),
-            wxOK | wxICON_INFORMATION,
-            this);
-        return;
-    }
-
-    As400FileListDialog dialog(this, file_list_entries_);
-    if (dialog.ShowModal() == wxID_OK && dialog.HasSelection()) {
-        JumpToElement(dialog.SelectedElementIndex());
-    }
+    SetPrimaryView(PrimaryView::RawExplorer);
+    JumpToElement(static_cast<std::size_t>(file_list_view_->GetItemData(item)));
 }
 
 void MainFrame::OnStructureSelected(wxListEvent& event)

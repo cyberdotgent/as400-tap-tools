@@ -18,12 +18,19 @@ class wxListEvent;
 class wxListCtrl;
 class wxPanel;
 class wxSplitterWindow;
+class wxStaticText;
 class wxString;
 class wxTextCtrl;
+class wxWindow;
 
 enum class DecoderMode {
     Generic,
     IbmAs400
+};
+
+enum class PrimaryView {
+    FileList,
+    RawExplorer
 };
 
 class MainFrame final : public wxFrame
@@ -35,8 +42,11 @@ public:
 private:
     void BuildMenuBar();
     void BuildContent();
+    void BuildFileListView(wxWindow* parent);
+    void BuildRawExplorerView(wxWindow* parent);
 
     void ClearTape();
+    void PopulateFileListView();
     void PopulateStructureList();
     void ShowSelectedElement(std::size_t index);
     void JumpToElement(std::size_t index);
@@ -44,7 +54,9 @@ private:
     void SetEncoding(TextEncoding encoding);
     void SetDecoderMode(DecoderMode decoder_mode);
     void DetectDecoderMode();
+    void SetPrimaryView(PrimaryView view);
     void UpdateDecoderPanel();
+    void UpdateFileListHint();
     void UpdateWindowTitle();
     void UpdateStatusText();
 
@@ -57,9 +69,17 @@ private:
     void OnDecoderGeneric(wxCommandEvent& event);
     void OnDecoderIbmAs400(wxCommandEvent& event);
     void OnAs400FileList(wxCommandEvent& event);
+    void OnRawExplorerView(wxCommandEvent& event);
+    void OnFileListItemActivated(wxListEvent& event);
     void OnStructureSelected(wxListEvent& event);
     void OnAbout(wxCommandEvent& event);
 
+    wxPanel* file_list_panel_ = nullptr;
+    wxPanel* raw_explorer_panel_ = nullptr;
+    wxStaticText* file_list_hint_ = nullptr;
+    wxListCtrl* file_list_view_ = nullptr;
+    wxMenuItem* as400_file_list_item_ = nullptr;
+    wxMenuItem* raw_explorer_item_ = nullptr;
     wxSplitterWindow* main_splitter_ = nullptr;
     wxSplitterWindow* hex_decoder_splitter_ = nullptr;
     DecoderPropertyPane* decoder_panel_ = nullptr;
@@ -78,6 +98,7 @@ private:
     std::size_t selected_element_index_ = std::numeric_limits<std::size_t>::max();
     TextEncoding encoding_ = TextEncoding::Ascii;
     DecoderMode decoder_mode_ = DecoderMode::Generic;
+    PrimaryView primary_view_ = PrimaryView::FileList;
     std::string last_search_text_;
     std::size_t next_search_offset_ = 0;
 };

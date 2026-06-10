@@ -17,6 +17,7 @@
 #include <wx/msgdlg.h>
 #include <wx/panel.h>
 #include <wx/sizer.h>
+#include <wx/font.h>
 #include <wx/stattext.h>
 #include <wx/statusbr.h>
 #include <wx/string.h>
@@ -111,11 +112,22 @@ void MainFrame::BuildFileListView(wxWindow* parent)
 {
     file_list_panel_ = new wxPanel(parent);
     auto* sizer = new wxBoxSizer(wxVERTICAL);
-    file_list_header_ = new wxStaticText(file_list_panel_, wxID_ANY, wxString::FromUTF8("Volume: -\nOwner: -"));
-    sizer->Add(file_list_header_, 0, wxALL | wxEXPAND, 10);
-    file_list_hint_ = new wxStaticText(file_list_panel_, wxID_ANY, wxString());
-    file_list_hint_->Hide();
-    sizer->Add(file_list_hint_, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 10);
+    auto* header_sizer = new wxBoxSizer(wxHORIZONTAL);
+    volume_label_caption_ = new wxStaticText(file_list_panel_, wxID_ANY, wxString::FromUTF8("Volume:"));
+    volume_label_value_ = new wxStaticText(file_list_panel_, wxID_ANY, wxString::FromUTF8("-"));
+    owner_label_caption_ = new wxStaticText(file_list_panel_, wxID_ANY, wxString::FromUTF8("Owner:"));
+    owner_label_value_ = new wxStaticText(file_list_panel_, wxID_ANY, wxString::FromUTF8("-"));
+
+    auto monospace_font = volume_label_value_->GetFont();
+    monospace_font.SetFamily(wxFONTFAMILY_TELETYPE);
+    volume_label_value_->SetFont(monospace_font);
+    owner_label_value_->SetFont(monospace_font);
+
+    header_sizer->Add(volume_label_caption_, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, 6);
+    header_sizer->Add(volume_label_value_, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, 20);
+    header_sizer->Add(owner_label_caption_, 0, wxRIGHT | wxALIGN_CENTER_VERTICAL, 6);
+    header_sizer->Add(owner_label_value_, 0, wxALIGN_CENTER_VERTICAL);
+    sizer->Add(header_sizer, 0, wxALL | wxEXPAND, 10);
 
     file_list_view_ = new wxListCtrl(file_list_panel_, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL | wxBORDER_SUNKEN);
     file_list_view_->AppendColumn(wxString::FromUTF8("#"), wxLIST_FORMAT_RIGHT, 54);
@@ -212,7 +224,6 @@ void MainFrame::PopulateFileListView()
         file_list_view_->SetColumnWidth(column, wxLIST_AUTOSIZE_USEHEADER);
     }
     UpdateFileListHeader();
-    UpdateFileListHint();
 }
 
 void MainFrame::CollectFileListData()
@@ -248,21 +259,24 @@ void MainFrame::CollectFileListData()
 
 void MainFrame::UpdateFileListHeader()
 {
-    if (!file_list_header_) {
+    if (!volume_label_value_ || !owner_label_value_) {
         return;
     }
 
     if (!volume_label_) {
-        file_list_header_->SetLabel(wxString::FromUTF8("Volume: -\nOwner: -"));
+        volume_label_value_->SetLabel(wxString::FromUTF8("-"));
+        owner_label_value_->SetLabel(wxString::FromUTF8("-"));
         return;
     }
 
     const auto volume = as400::utils::fieldValue(*volume_label_, "Volume");
     const auto owner = as400::utils::fieldValue(*volume_label_, "Owner");
-    file_list_header_->SetLabel(wxString::Format(
-        wxString::FromUTF8("Volume: %s\nOwner: %s"),
-        wxString::FromUTF8(volume.empty() ? "-" : volume.c_str()),
-        wxString::FromUTF8(owner.empty() ? "-" : owner.c_str())));
+    volume_label_value_->SetLabel(wxString::FromUTF8(volume.empty() ? "-" : volume.c_str()));
+    owner_label_value_->SetLabel(wxString::FromUTF8(owner.empty() ? "-" : owner.c_str()));
+
+    if (file_list_panel_) {
+        file_list_panel_->Layout();
+    }
 }
 
 void MainFrame::UpdateWindowTitle()
@@ -275,28 +289,6 @@ void MainFrame::UpdateWindowTitle()
     SetTitle(wxString::Format(
         wxString::FromUTF8("AS400 Tape Tools - %s"),
         wxString::FromUTF8(loaded_path_.string().c_str())));
-}
-
-void MainFrame::UpdateFileListHint()
-{
-    if (!file_list_hint_) {
-        return;
-    }
-
-    if (loaded_path_.empty()) {
-        file_list_hint_->SetLabel(wxString());
-        file_list_hint_->Show(false);
-        return;
-    }
-
-    if (as400_parser_.isAs400Tape(tape_image_) && !file_list_entries_.empty()) {
-        file_list_hint_->SetLabel(wxString::FromUTF8("Double-click a file to open its HDR1 record in the raw tape explorer."));
-        file_list_hint_->Show(true);
-    } else {
-        file_list_hint_->SetLabel(wxString());
-        file_list_hint_->Show(false);
-    }
-    file_list_panel_->Layout();
 }
 
 void MainFrame::ShowFileListLoadMessage()

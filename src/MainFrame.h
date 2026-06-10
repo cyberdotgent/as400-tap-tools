@@ -33,7 +33,6 @@ private:
     void PopulateFileListView();
     void CollectFileListData();
     void UpdateFileListHeader();
-    void UpdateFileListHint();
     void ShowFileListLoadMessage();
     void UpdateWindowTitle();
     void UpdateStatusText();
@@ -45,8 +44,10 @@ private:
     void OnAbout(wxCommandEvent& event);
 
     wxPanel* file_list_panel_ = nullptr;
-    wxStaticText* file_list_header_ = nullptr;
-    wxStaticText* file_list_hint_ = nullptr;
+    wxStaticText* volume_label_caption_ = nullptr;
+    wxStaticText* volume_label_value_ = nullptr;
+    wxStaticText* owner_label_caption_ = nullptr;
+    wxStaticText* owner_label_value_ = nullptr;
     wxListCtrl* file_list_view_ = nullptr;
     wxMenuItem* raw_explorer_item_ = nullptr;
 

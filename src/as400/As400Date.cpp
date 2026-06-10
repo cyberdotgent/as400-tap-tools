@@ -1,6 +1,6 @@
 #include "As400Date.h"
 
-#include "FixedWidthText.h"
+#include "utils/FixedWidthText.h"
 
 #include <iomanip>
 #include <sstream>
@@ -37,7 +37,7 @@ RecordField As400Date::makeDecodedDateField(const char* label, const std::string
         return result;
     }
 
-    if (raw_value.size() != 6 || !isDigits(raw_value)) {
+    if (raw_value.size() != 6 || !::utils::isDigits(raw_value)) {
         return result;
     }
 

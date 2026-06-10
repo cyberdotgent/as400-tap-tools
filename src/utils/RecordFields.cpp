@@ -4,7 +4,7 @@
 #include <cctype>
 #include <utility>
 
-namespace as400::utils {
+namespace utils {
 
 namespace {
 
@@ -22,37 +22,37 @@ std::string normalizedExpirationValue(std::string value)
 
 } // namespace
 
-const RecordField* findField(const std::vector<RecordField>& fields, std::string_view name)
+const as400::RecordField* findField(const std::vector<as400::RecordField>& fields, std::string_view name)
 {
-    const auto field = std::find_if(fields.begin(), fields.end(), [name](const RecordField& entry) {
+    const auto field = std::find_if(fields.begin(), fields.end(), [name](const as400::RecordField& entry) {
         return entry.name == name;
     });
     return field == fields.end() ? nullptr : &*field;
 }
 
-const RecordField* findField(const RecordInfo& record, std::string_view name)
+const as400::RecordField* findField(const as400::RecordInfo& record, std::string_view name)
 {
     return findField(record.fields, name);
 }
 
-const RecordField* findChildField(const RecordField& field, std::string_view name)
+const as400::RecordField* findChildField(const as400::RecordField& field, std::string_view name)
 {
     return findField(field.children, name);
 }
 
-std::string fieldValue(const RecordInfo& record, std::string_view name)
+std::string fieldValue(const as400::RecordInfo& record, std::string_view name)
 {
     const auto* field = findField(record, name);
     return field == nullptr ? std::string{} : field->value;
 }
 
-std::string childFieldValue(const RecordField& field, std::string_view name)
+std::string childFieldValue(const as400::RecordField& field, std::string_view name)
 {
     const auto* child = findChildField(field, name);
     return child == nullptr ? std::string{} : child->value;
 }
 
-std::string decodedDateValue(const RecordInfo& record, std::string_view name, bool expiration_date)
+std::string decodedDateValue(const as400::RecordInfo& record, std::string_view name, bool expiration_date)
 {
     const auto* field = findField(record, name);
     if (field == nullptr) {
@@ -70,15 +70,15 @@ std::string decodedDateValue(const RecordInfo& record, std::string_view name, bo
     return decoded.empty() ? field->value : decoded;
 }
 
-void appendField(std::vector<RecordField>& fields, const char* label, const std::string& value)
+void appendField(std::vector<as400::RecordField>& fields, const char* label, const std::string& value)
 {
     if (value.empty()) {
         return;
     }
-    fields.push_back(RecordField{label, value});
+    fields.push_back(as400::RecordField{label, value});
 }
 
-std::string formatDetails(const std::vector<RecordField>& fields)
+std::string formatDetails(const std::vector<as400::RecordField>& fields)
 {
     std::string details;
     for (const auto& field : fields) {
@@ -92,9 +92,13 @@ std::string formatDetails(const std::vector<RecordField>& fields)
     return details;
 }
 
-RecordInfo makeInfo(RecordType type, std::string code, std::string name, std::vector<RecordField> fields)
+as400::RecordInfo makeInfo(
+    as400::RecordType type,
+    std::string code,
+    std::string name,
+    std::vector<as400::RecordField> fields)
 {
-    RecordInfo info;
+    as400::RecordInfo info;
     info.type = type;
     info.code = std::move(code);
     info.name = std::move(name);
@@ -104,4 +108,4 @@ RecordInfo makeInfo(RecordType type, std::string code, std::string name, std::ve
     return info;
 }
 
-} // namespace as400::utils
+} // namespace utils

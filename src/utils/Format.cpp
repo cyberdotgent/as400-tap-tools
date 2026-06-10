@@ -3,7 +3,7 @@
 #include <iomanip>
 #include <sstream>
 
-namespace as400::utils {
+namespace utils {
 
 std::string Format::humanSize(std::uint64_t value)
 {
@@ -25,4 +25,4 @@ std::string Format::humanSize(std::uint64_t value)
     return output.str();
 }
 
-} // namespace as400::utils
+} // namespace utils

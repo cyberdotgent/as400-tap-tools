@@ -61,18 +61,18 @@ target_include_directories(tap
 add_library(as400 STATIC
     src/as400/Cp37.cpp
     src/as400/Cp37.h
+    src/as400/As400Date.cpp
+    src/as400/As400Date.h
     src/as400/FileList.cpp
     src/as400/FileList.h
     src/as400/RecordParser.cpp
     src/as400/RecordParser.h
-    src/as400/utils/As400Date.cpp
-    src/as400/utils/As400Date.h
-    src/as400/utils/FixedWidthText.cpp
-    src/as400/utils/FixedWidthText.h
-    src/as400/utils/Format.cpp
-    src/as400/utils/Format.h
-    src/as400/utils/RecordFields.cpp
-    src/as400/utils/RecordFields.h
+    src/utils/FixedWidthText.cpp
+    src/utils/FixedWidthText.h
+    src/utils/Format.cpp
+    src/utils/Format.h
+    src/utils/RecordFields.cpp
+    src/utils/RecordFields.h
 )
 
 target_include_directories(as400

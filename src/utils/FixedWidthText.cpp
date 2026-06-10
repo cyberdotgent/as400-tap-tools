@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cctype>
 
-namespace as400::utils {
+namespace utils {
 
 std::string trim(std::string value)
 {
@@ -32,4 +32,4 @@ bool isDigits(const std::string& value)
     });
 }
 
-} // namespace as400::utils
+} // namespace utils

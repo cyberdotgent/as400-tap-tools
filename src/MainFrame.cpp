@@ -3,7 +3,7 @@
 #include "RawTapeExplorerDialog.h"
 #include "TapeAnalysis.h"
 #include "TapeProgressDialog.h"
-#include "as400/utils/RecordFields.h"
+#include "utils/RecordFields.h"
 #include "tap/Reader.h"
 
 #include <algorithm>
@@ -322,8 +322,8 @@ void MainFrame::UpdateFileListHeader()
         return;
     }
 
-    const auto volume = as400::utils::fieldValue(*tape_analysis_->volume_label, "Volume");
-    const auto owner = as400::utils::fieldValue(*tape_analysis_->volume_label, "Owner");
+    const auto volume = ::utils::fieldValue(*tape_analysis_->volume_label, "Volume");
+    const auto owner = ::utils::fieldValue(*tape_analysis_->volume_label, "Owner");
     volume_label_value_->SetLabel(wxString::FromUTF8(volume.empty() ? "-" : volume.c_str()));
     owner_label_value_->SetLabel(wxString::FromUTF8(owner.empty() ? "-" : owner.c_str()));
 

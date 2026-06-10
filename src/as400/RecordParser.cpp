@@ -1,7 +1,7 @@
 #include "RecordParser.h"
 
 #include "Cp37.h"
-#include "utils/As400Date.h"
+#include "as400/As400Date.h"
 #include "utils/FixedWidthText.h"
 #include "utils/RecordFields.h"
 
@@ -11,53 +11,53 @@ namespace {
 RecordInfo parseVolumeLabel(const std::string& text)
 {
     std::vector<RecordField> fields;
-    utils::appendField(fields, "Record type", "VOL1");
-    utils::appendField(fields, "Volume", utils::field(text, 4, 6));
-    utils::appendField(fields, "Owner", utils::field(text, 37, 14));
-    return utils::makeInfo(RecordType::VolumeLabel, "VOL1", "Volume label", std::move(fields));
+    ::utils::appendField(fields, "Record type", "VOL1");
+    ::utils::appendField(fields, "Volume", ::utils::field(text, 4, 6));
+    ::utils::appendField(fields, "Owner", ::utils::field(text, 37, 14));
+    return ::utils::makeInfo(RecordType::VolumeLabel, "VOL1", "Volume label", std::move(fields));
 }
 
 RecordInfo parseHeader1(const std::string& text)
 {
     std::vector<RecordField> fields;
-    utils::appendField(fields, "Record type", "HDR1");
-    utils::appendField(fields, "File", utils::field(text, 4, 17));
-    utils::appendField(fields, "Set", utils::field(text, 21, 6));
-    utils::appendField(fields, "Section", utils::field(text, 27, 4));
-    utils::appendField(fields, "Sequence", utils::field(text, 31, 4));
-    utils::appendField(fields, "Generation", utils::field(text, 35, 4));
-    fields.push_back(utils::As400Date::makeDecodedDateField("Created", utils::field(text, 41, 6), false));
-    fields.push_back(utils::As400Date::makeDecodedDateField("Expires", utils::field(text, 47, 6), true));
-    utils::appendField(fields, "Block count", utils::field(text, 54, 6));
-    utils::appendField(fields, "System", utils::field(text, 60, 13));
-    return utils::makeInfo(RecordType::Header1, "HDR1", "Data set header 1", std::move(fields));
+    ::utils::appendField(fields, "Record type", "HDR1");
+    ::utils::appendField(fields, "File", ::utils::field(text, 4, 17));
+    ::utils::appendField(fields, "Set", ::utils::field(text, 21, 6));
+    ::utils::appendField(fields, "Section", ::utils::field(text, 27, 4));
+    ::utils::appendField(fields, "Sequence", ::utils::field(text, 31, 4));
+    ::utils::appendField(fields, "Generation", ::utils::field(text, 35, 4));
+    fields.push_back(as400::utils::As400Date::makeDecodedDateField("Created", ::utils::field(text, 41, 6), false));
+    fields.push_back(as400::utils::As400Date::makeDecodedDateField("Expires", ::utils::field(text, 47, 6), true));
+    ::utils::appendField(fields, "Block count", ::utils::field(text, 54, 6));
+    ::utils::appendField(fields, "System", ::utils::field(text, 60, 13));
+    return ::utils::makeInfo(RecordType::Header1, "HDR1", "Data set header 1", std::move(fields));
 }
 
 RecordInfo parseHeader2(const std::string& text)
 {
     std::vector<RecordField> fields;
-    utils::appendField(fields, "Record type", "HDR2");
-    utils::appendField(fields, "Format", utils::field(text, 4, 1));
-    utils::appendField(fields, "Block length", utils::field(text, 5, 5));
-    utils::appendField(fields, "Record length", utils::field(text, 10, 5));
-    utils::appendField(fields, "Density", utils::field(text, 15, 1));
-    utils::appendField(fields, "Job", utils::field(text, 38, 17));
-    return utils::makeInfo(RecordType::Header2, "HDR2", "Data set header 2", std::move(fields));
+    ::utils::appendField(fields, "Record type", "HDR2");
+    ::utils::appendField(fields, "Format", ::utils::field(text, 4, 1));
+    ::utils::appendField(fields, "Block length", ::utils::field(text, 5, 5));
+    ::utils::appendField(fields, "Record length", ::utils::field(text, 10, 5));
+    ::utils::appendField(fields, "Density", ::utils::field(text, 15, 1));
+    ::utils::appendField(fields, "Job", ::utils::field(text, 38, 17));
+    return ::utils::makeInfo(RecordType::Header2, "HDR2", "Data set header 2", std::move(fields));
 }
 
 RecordInfo parseSimpleLabel(const std::string& code)
 {
     if (code == "EOF1") {
-        return utils::makeInfo(RecordType::EndOfFile1, code, "End-of-file label 1", {RecordField{"Record type", code}});
+        return ::utils::makeInfo(RecordType::EndOfFile1, code, "End-of-file label 1", {RecordField{"Record type", code}});
     }
     if (code == "EOF2") {
-        return utils::makeInfo(RecordType::EndOfFile2, code, "End-of-file label 2", {RecordField{"Record type", code}});
+        return ::utils::makeInfo(RecordType::EndOfFile2, code, "End-of-file label 2", {RecordField{"Record type", code}});
     }
     if (code == "UHL1") {
-        return utils::makeInfo(RecordType::UserHeader1, code, "User header label 1", {RecordField{"Record type", code}});
+        return ::utils::makeInfo(RecordType::UserHeader1, code, "User header label 1", {RecordField{"Record type", code}});
     }
     if (code == "UHL2") {
-        return utils::makeInfo(RecordType::UserHeader2, code, "User header label 2", {RecordField{"Record type", code}});
+        return ::utils::makeInfo(RecordType::UserHeader2, code, "User header label 2", {RecordField{"Record type", code}});
     }
     return {};
 }

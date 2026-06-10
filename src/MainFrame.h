@@ -1,14 +1,11 @@
 #pragma once
 
-#include "DecoderPropertyPane.h"
-#include "HexFormatter.h"
 #include "as400/FileList.h"
 #include "as400/RecordParser.h"
 #include "tap/TapeImage.h"
 
 #include <filesystem>
-#include <limits>
-#include <string>
+#include <optional>
 #include <vector>
 
 #include <wx/frame.h>
@@ -17,21 +14,9 @@ class wxCommandEvent;
 class wxListEvent;
 class wxListCtrl;
 class wxPanel;
-class wxSplitterWindow;
 class wxStaticText;
 class wxString;
-class wxTextCtrl;
 class wxWindow;
-
-enum class DecoderMode {
-    Generic,
-    IbmAs400
-};
-
-enum class PrimaryView {
-    FileList,
-    RawExplorer
-};
 
 class MainFrame final : public wxFrame
 {
@@ -43,62 +28,31 @@ private:
     void BuildMenuBar();
     void BuildContent();
     void BuildFileListView(wxWindow* parent);
-    void BuildRawExplorerView(wxWindow* parent);
 
     void ClearTape();
     void PopulateFileListView();
-    void PopulateStructureList();
-    void ShowSelectedElement(std::size_t index);
-    void JumpToElement(std::size_t index);
-    void RefreshHexView();
-    void SetEncoding(TextEncoding encoding);
-    void SetDecoderMode(DecoderMode decoder_mode);
-    void DetectDecoderMode();
-    void SetPrimaryView(PrimaryView view);
-    void UpdateDecoderPanel();
+    void CollectFileListData();
+    void UpdateFileListHeader();
     void UpdateFileListHint();
+    void ShowFileListLoadMessage();
     void UpdateWindowTitle();
     void UpdateStatusText();
 
     void OnOpen(wxCommandEvent& event);
     void OnCloseFile(wxCommandEvent& event);
-    void OnCopy(wxCommandEvent& event);
-    void OnFind(wxCommandEvent& event);
-    void OnEncodingAscii(wxCommandEvent& event);
-    void OnEncodingEbcdic(wxCommandEvent& event);
-    void OnDecoderGeneric(wxCommandEvent& event);
-    void OnDecoderIbmAs400(wxCommandEvent& event);
-    void OnAs400FileList(wxCommandEvent& event);
     void OnRawExplorerView(wxCommandEvent& event);
     void OnFileListItemActivated(wxListEvent& event);
-    void OnStructureSelected(wxListEvent& event);
     void OnAbout(wxCommandEvent& event);
 
     wxPanel* file_list_panel_ = nullptr;
-    wxPanel* raw_explorer_panel_ = nullptr;
+    wxStaticText* file_list_header_ = nullptr;
     wxStaticText* file_list_hint_ = nullptr;
     wxListCtrl* file_list_view_ = nullptr;
-    wxMenuItem* as400_file_list_item_ = nullptr;
     wxMenuItem* raw_explorer_item_ = nullptr;
-    wxSplitterWindow* main_splitter_ = nullptr;
-    wxSplitterWindow* hex_decoder_splitter_ = nullptr;
-    DecoderPropertyPane* decoder_panel_ = nullptr;
-    wxListCtrl* structure_list_ = nullptr;
-    wxTextCtrl* hex_view_ = nullptr;
-    wxMenuItem* ascii_encoding_item_ = nullptr;
-    wxMenuItem* ebcdic_encoding_item_ = nullptr;
-    wxMenuItem* generic_decoder_item_ = nullptr;
-    wxMenuItem* as400_decoder_item_ = nullptr;
 
     as400::RecordParser as400_parser_;
     tap::TapeImage tape_image_;
     std::filesystem::path loaded_path_;
+    std::optional<as400::RecordInfo> volume_label_;
     std::vector<as400::FileListEntry> file_list_entries_;
-    std::vector<std::uint8_t> selected_bytes_;
-    std::size_t selected_element_index_ = std::numeric_limits<std::size_t>::max();
-    TextEncoding encoding_ = TextEncoding::Ascii;
-    DecoderMode decoder_mode_ = DecoderMode::Generic;
-    PrimaryView primary_view_ = PrimaryView::FileList;
-    std::string last_search_text_;
-    std::size_t next_search_offset_ = 0;
 };

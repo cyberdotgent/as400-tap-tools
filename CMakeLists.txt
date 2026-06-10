@@ -102,6 +102,8 @@ add_executable(as400-tap-tools WIN32 MACOSX_BUNDLE
     src/HexFormatter.h
     src/MainFrame.cpp
     src/MainFrame.h
+    src/RawTapeExplorerDialog.cpp
+    src/RawTapeExplorerDialog.h
     src/TapeProgressDialog.cpp
     src/TapeProgressDialog.h
     src/TapeElementView.cpp
